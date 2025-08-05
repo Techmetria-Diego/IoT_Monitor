@@ -114,11 +114,40 @@ npm run dev
 
 ## 🚀 Deploy
 
+### Opções de Deploy Disponíveis
+
 O projeto pode ser facilmente deployed em:
-- Vercel
-- Netlify
-- GitHub Pages
-- Qualquer provedor que suporte SPAs
+
+#### 🐳 Docker (Recomendado para Back4App)
+```bash
+# Build da imagem Docker
+docker build -t iot-monitor .
+
+# Executar localmente
+docker run -p 3000:3000 iot-monitor
+```
+
+#### ☁️ Plataformas Cloud
+- **Back4App**: Suporte completo via Docker
+- **Vercel**: Deploy automático via GitHub
+- **Netlify**: Deploy de SPA
+- **GitHub Pages**: Páginas estáticas
+- **Heroku**: Via Docker ou buildpack Node.js
+
+### Configuração para Back4App
+
+1. Conecte seu repositório GitHub ao Back4App
+2. O sistema detectará automaticamente o `Dockerfile`
+3. Configure as variáveis de ambiente se necessário
+4. Deploy automático será realizado
+
+### Variáveis de Ambiente (Opcionais)
+
+```bash
+# Para configuração avançada
+VITE_GOOGLE_CLIENT_ID=seu_client_id_aqui
+VITE_MAIN_FOLDER_ID=id_da_pasta_principal
+```
 
 ## 📝 Desenvolvimento
 
