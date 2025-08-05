@@ -1,0 +1,285 @@
+/* Global styles - Theme, font, utilities, animations and global components */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #ffffff; /* Branco puro */
+    --foreground: #212529; /* Preto quase total */
+
+    --card: #ffffff;
+    --card-foreground: #212529;
+
+    --popover: #ffffff;
+    --popover-foreground: #212529;
+
+    --primary: #007bff; /* Azul vibrante */
+    --primary-foreground: #ffffff;
+
+    --secondary: #f8f9fa; /* Cinza claro quase branco */
+    --secondary-foreground: #6c757d; /* Cinza médio */
+
+    --muted: #f8f9fa;
+    --muted-foreground: #6c757d;
+
+    --accent: #f8f9fa;
+    --accent-foreground: #212529;
+
+    --destructive: #dc3545; /* Vermelho */
+    --destructive-foreground: #ffffff;
+    --destructive-background: #f8d7da; /* Vermelho muito claro */
+
+    --success: #28a745; /* Verde */
+
+    --border: #dee2e6; /* Cinza muito claro */
+    --input: #dee2e6;
+    --ring: #007bff;
+
+    --radius: 0.75rem; /* 12px */
+
+    --chart-1: #007bff;
+    --chart-2: #6c757d;
+    --chart-3: #28a745;
+    --chart-4: #ffc107;
+    --chart-5: #17a2b8;
+  }
+
+  .dark {
+    --background: #1a1a1a;
+    --foreground: #f8f9fa;
+
+    --card: #2c2c2c;
+    --card-foreground: #f8f9fa;
+
+    --popover: #2c2c2c;
+    --popover-foreground: #f8f9fa;
+
+    --primary: #007bff;
+    --primary-foreground: #ffffff;
+
+    --secondary: #3a3a3a;
+    --secondary-foreground: #dee2e6;
+
+    --muted: #3a3a3a;
+    --muted-foreground: #dee2e6;
+
+    --accent: #3a3a3a;
+    --accent-foreground: #f8f9fa;
+
+    --destructive: #dc3545;
+    --destructive-foreground: #ffffff;
+    --destructive-background: #4d1a20;
+
+    --success: #28a745;
+
+    --border: #4a4a4a;
+    --input: #4a4a4a;
+    --ring: #007bff;
+  }
+}
+
+@layer base {
+  /* Notification toast styles - DO NOT REMOVE: Required for sonner notifications */
+  section[aria-label='Notifications alt+T'] {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  /* Base element styles */
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+    font-variation-settings: 'opsz' 32;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold;
+  }
+  h1 {
+    @apply text-4xl;
+  }
+  h2 {
+    @apply text-3xl;
+  }
+  h3 {
+    @apply text-2xl;
+  }
+}
+
+@layer utilities {
+  /* Responsive layout utilities */
+  .page-container {
+    @apply w-full;
+    @apply px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 3xl:px-20;
+    @apply py-6 sm:py-8 lg:py-10;
+    @apply max-w-none;
+  }
+  
+  .page-container-constrained {
+    @apply w-full min-h-0 container mx-auto;
+    @apply py-6 sm:py-8 lg:py-10;
+  }
+  
+  .page-container-full {
+    @apply w-full flex-1;
+    @apply px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 3xl:px-20;
+    @apply py-6 sm:py-8 lg:py-10;
+    @apply max-w-none;
+  }
+  
+  .page-header {
+    @apply mb-6 sm:mb-8 lg:mb-10;
+  }
+  
+  .page-title {
+    @apply text-2xl sm:text-3xl lg:text-4xl font-bold mb-2;
+  }
+  
+  .page-subtitle {
+    @apply text-sm sm:text-base text-muted-foreground max-w-2xl;
+  }
+  
+  .content-grid {
+    @apply grid gap-4 sm:gap-6 lg:gap-8;
+  }
+  
+  .content-grid-2 {
+    @apply grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2;
+  }
+  
+  .content-grid-3 {
+    @apply grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3;
+  }
+  
+  .content-grid-4 {
+    @apply grid gap-4 sm:gap-6 lg:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6;
+  }
+  
+  .content-grid-adaptive {
+    @apply grid gap-4 sm:gap-6 lg:gap-8;
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  }
+  
+  .content-grid-ultrawide {
+    @apply grid gap-4 sm:gap-6 lg:gap-8;
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  }
+  
+  .card-responsive {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+  
+  .button-responsive {
+    @apply px-4 py-2 sm:px-6 sm:py-3;
+    @apply text-sm sm:text-base;
+  }
+  
+  .section-spacing {
+    @apply space-y-6 sm:space-y-8 lg:space-y-10;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out forwards;
+  }
+  
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Focus improvements */
+  .focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2;
+  }
+
+  /* Utility classes for better UX */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .transition-all-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  /* Full height layout utilities */
+  .full-height-layout {
+    @apply flex flex-col h-full;
+  }
+  
+  .full-height-content {
+    @apply flex-1 overflow-y-auto;
+  }
+  
+  /* Page layout utilities */
+  .page-content {
+    @apply flex-1 flex flex-col;
+  }
+  
+  /* Sticky footer utilities */
+  .page-with-sticky-footer {
+    @apply min-h-full flex flex-col;
+  }
+  
+  .page-main-content {
+    @apply flex-1;
+  }
+  
+  /* Better scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground));
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--foreground));
+  }
+}
