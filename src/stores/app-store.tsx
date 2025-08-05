@@ -160,14 +160,28 @@ export const useAppStore = create<AppState & AppActions>()(
           console.log('🔐 [STORE] Executando triggerSimpleAuthLogin...')
           triggerSimpleAuthLogin()
           
-          // CORREÇÃO TEMPORÁRIA: Desabilitar validação automática que está causando desconexões
-          // TODO: Reimplementar validação automática mais robusta
+          // Implementar validação automática robusta (melhorada)
           if (tokenValidationTimer) {
             clearInterval(tokenValidationTimer)
             tokenValidationTimer = null
           }
           
-          console.log('⚠️ Validação automática de token temporariamente DESABILITADA para evitar desconexões')
+          // Validar token a cada 45 minutos (tokens duram ~1h)
+          tokenValidationTimer = setInterval(async () => {
+            const currentState = get()
+            if (currentState.isConnected && currentState.credentials.accessToken) {
+              console.log('🔐 Executando validação automática de token...')
+              try {
+                await currentState.validateAndReconnect()
+                console.log('✅ Token validado e renovado com sucesso')
+              } catch (error) {
+                console.warn('⚠️ Falha na validação automática, mantendo estado atual:', error)
+                // Não desconectar automaticamente - deixar o usuário decidir
+              }
+            }
+          }, 45 * 60 * 1000) // 45 minutos
+          
+          console.log('✅ Validação automática de token REABILITADA (robusta)')
           
         } catch (error) {
           console.error('❌ [STORE] ERRO em connectToDrive:', error)
@@ -255,9 +269,23 @@ export const useAppStore = create<AppState & AppActions>()(
       },
 
       fetchReportsByPeriod: async (periodId, forceRefresh = false) => {
-        if (!forceRefresh && get().reports[periodId] && get().reports[periodId].length > 0) {
-          get().setCurrentPeriodById(periodId)
-          return
+        const state = get()
+        const cachedReports = state.reports[periodId]
+        
+        // Cache inteligente: verificar se há dados em cache e se ainda são válidos
+        if (!forceRefresh && cachedReports && cachedReports.length > 0) {
+          // Verificar se o cache ainda é válido (30 minutos)
+          const cacheKey = `reports_cache_${periodId}`
+          const cacheTimestamp = localStorage.getItem(cacheKey)
+          const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000)
+          
+          if (cacheTimestamp && parseInt(cacheTimestamp) > thirtyMinutesAgo) {
+            console.log('📋 Usando dados em cache válidos para período:', periodId)
+            get().setCurrentPeriodById(periodId)
+            return
+          } else {
+            console.log('⏰ Cache expirado, recarregando dados para período:', periodId)
+          }
         }
         set({ isLoading: true, error: null })
         try {
@@ -265,6 +293,10 @@ export const useAppStore = create<AppState & AppActions>()(
             periodId,
             get().credentials,
           )
+          // Atualizar cache timestamp quando novos dados são carregados
+          const cacheKey = `reports_cache_${periodId}`
+          localStorage.setItem(cacheKey, Date.now().toString())
+          
           set((state) => ({
             reports: { ...state.reports, [periodId]: reports },
             credentials: updatedConfig, // Update credentials if token was refreshed

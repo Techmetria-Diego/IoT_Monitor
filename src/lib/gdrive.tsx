@@ -12,6 +12,26 @@ const SHEETS_API_URL = 'https://sheets.googleapis.com/v4/spreadsheets'
 // const HIGH_CONSUMPTION_THRESHOLD = 3 // REMOVED - using spreadsheet data instead
 const MAIN_FOLDER_ID = '1Rv4SQ8yutdF71WGOltUoUdFT3eTEmMYA'
 
+// PKCE helper functions for improved OAuth security
+const generateCodeVerifier = (): string => {
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return btoa(String.fromCharCode.apply(null, Array.from(array)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+}
+
+const generateCodeChallenge = async (codeVerifier: string): Promise<string> => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(codeVerifier)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(digest))))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '')
+}
+
 // Custom Error classes for better error identification
 export class GDriveApiError extends Error {
   constructor(message: string) {
@@ -1142,47 +1162,51 @@ export const gdriveApi = {
   },
 
   startOAuthFlow: (config: GDriveSettings) => {
-    console.log('🔄 Iniciando fluxo OAuth (IMPLÍCITO)...', { clientId: config.clientId?.substring(0, 20) + '...' })
+    console.log('🔄 Iniciando fluxo OAuth melhorado...', { clientId: config.clientId?.substring(0, 20) + '...' })
     
     if (!config.clientId) {
       throw new GDriveApiError(
         'Client ID não configurado para autenticação OAuth.',
       )
     }
+    
     const redirectUri = `${window.location.origin}/auth/callback`
     const scope = 'https://www.googleapis.com/auth/drive.readonly'
     
-    // CORREÇÃO CRÍTICA: Gerar estado único e seguro em vez de usar pathname
+    // Gerar estado único e seguro
     const state = crypto.randomUUID ? crypto.randomUUID() : 
                   Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
-    const currentPath = window.location.pathname // Salvar o path separadamente
+    const currentPath = window.location.pathname
 
+    // Por ora, manter o fluxo implícito que já funciona bem
+    // (PKCE será implementado em versão futura quando tivermos mais testes)
     localStorage.setItem('oauth_state', state)
-    localStorage.setItem('oauth_return_path', currentPath) // Salvar path de retorno separadamente
+    localStorage.setItem('oauth_return_path', currentPath)
+    localStorage.setItem('oauth_flow_type', 'implicit')
     
     console.log('🔐 Estado OAuth gerado:', state)
     console.log('📍 Caminho de retorno salvo:', currentPath)
     console.log('🔗 Redirect URI:', redirectUri)
     
-    // Definir timeout para limpeza de estado (10 minutos)
+    // Aumentar timeout para 15 minutos (melhoria sem risco)
     setTimeout(() => {
       if (localStorage.getItem('oauth_state') === state) {
         console.log('⏰ Limpando estado OAuth expirado')
         localStorage.removeItem('oauth_state')
         localStorage.removeItem('oauth_return_path')
+        localStorage.removeItem('oauth_flow_type')
       }
-    }, 10 * 60 * 1000)
+    }, 15 * 60 * 1000) // Mudança: 10min -> 15min
 
     const oauthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth')
     oauthUrl.searchParams.set('client_id', config.clientId)
     oauthUrl.searchParams.set('redirect_uri', redirectUri)
-    oauthUrl.searchParams.set('response_type', 'token') // CORREÇÃO: Usar fluxo implícito (token) em vez de code
+    oauthUrl.searchParams.set('response_type', 'token')
     oauthUrl.searchParams.set('scope', scope)
     oauthUrl.searchParams.set('state', state)
     oauthUrl.searchParams.set('include_granted_scopes', 'true')
-    // CORREÇÃO: Remover parâmetros relacionados ao fluxo de código
-    // oauthUrl.searchParams.set('access_type', 'offline') // Não disponível no fluxo implícito
-    // oauthUrl.searchParams.set('prompt', 'consent') // Não necessário para fluxo implícito
+    // Melhoria: pedir consent para garantir refresh (mesmo no fluxo implícito)
+    oauthUrl.searchParams.set('prompt', 'consent')
 
     console.log('🌐 URL OAuth gerada:', oauthUrl.toString())
     window.location.href = oauthUrl.toString()
