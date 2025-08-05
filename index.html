@@ -4,11 +4,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Um incrível projeto do Skip</title>
-    <meta name="description" content="Projeto gerado usando Skip (https://goskip.dev)" />
-    <meta name="author" content="Skip (https://goskip.dev)" />
+    <title>IoT Monitor - Sistema de Monitoramento</title>
+    <meta name="description" content="Sistema de monitoramento IoT para consumo de água e gás" />
+    <meta name="author" content="Techmetria" />
     <meta property="og:image" content="/og-image.png" />
     <link rel="icon" type="image/png" href="/tech.png" />
+    
+    <!-- Content Security Policy para mitigar riscos de segurança -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: https:;
+      connect-src 'self' https://www.googleapis.com https://sheets.googleapis.com https://accounts.google.com https://oauth2.googleapis.com;
+      frame-src 'self' https://accounts.google.com;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+    ">
   </head>
 
   <body>

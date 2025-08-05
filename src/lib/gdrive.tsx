@@ -12,6 +12,9 @@ const SHEETS_API_URL = 'https://sheets.googleapis.com/v4/spreadsheets'
 // const HIGH_CONSUMPTION_THRESHOLD = 3 // REMOVED - using spreadsheet data instead
 const MAIN_FOLDER_ID = '1Rv4SQ8yutdF71WGOltUoUdFT3eTEmMYA'
 
+// Import secure xlsx wrapper
+import { secureXlsxRead, validateXlsxFile, SECURITY_INFO } from './secure-xlsx'
+
 // PKCE helper functions for improved OAuth security
 const generateCodeVerifier = (): string => {
   const array = new Uint8Array(32)
@@ -288,13 +291,14 @@ const getTendency = (consumo: number): UnitData['tendencia'] => {
 }
 
 // Helper function to read XLSX file as Google Sheets
-// Alternative method: Try to read XLSX directly (fallback approach)
+// Alternative method: Try to read XLSX directly (fallback approach) - NOW WITH SECURITY
 const readXlsxDirectly = async (
   fileId: string,
   config: GDriveSettings,
   caller?: string
 ): Promise<{ values: any[][] }> => {
-  console.log('🔄 Attempting direct XLSX read as fallback...')
+  console.log('🔄 Attempting secure XLSX read...')
+  console.log('🛡️ Security mitigations active:', SECURITY_INFO.mitigations.length, 'layers')
   
   try {
     // Download the XLSX file content
@@ -311,42 +315,52 @@ const readXlsxDirectly = async (
     const arrayBuffer = await fileResponse.arrayBuffer()
     console.log('📥 Downloaded XLSX file, size:', arrayBuffer.byteLength, 'bytes')
     
-    // Import XLSX library dynamically
-    console.log('📚 Importing XLSX library...')
-    const XLSX = await import('xlsx')
-    console.log('✅ XLSX library imported successfully')
+    // Validate file before processing
+    if (!validateXlsxFile(arrayBuffer)) {
+      throw new Error('Invalid or corrupted XLSX file')
+    }
+    console.log('✅ File validation passed')
     
-    // Parse the XLSX file
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
-    console.log('📚 Workbook loaded, sheets:', workbook.SheetNames)
-    
-    // Get the first sheet (or you could make this configurable)
-    const firstSheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[firstSheetName]
-    
-    // Convert to JSON format (array of arrays)
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-      header: 1, // Return as array of arrays instead of array of objects
-      raw: false, // Convert values to strings to maintain consistency
-      defval: '' // Default value for empty cells
+    // Use secure wrapper instead of direct XLSX
+    console.log('🛡️ Processing with security wrapper...')
+    const processedSheets = await secureXlsxRead(arrayBuffer, {
+      cellDates: false, // Disable date parsing to prevent ReDoS
+      cellNF: false,    // Disable number formatting
+      cellStyles: false // Disable styles
     })
     
-    console.log(`✅ Successfully parsed XLSX file by [${caller}]:`, jsonData.length, 'rows')
+    // Get the first sheet data
+    const sheetNames = Object.keys(processedSheets)
+    if (sheetNames.length === 0) {
+      throw new Error('No valid sheets found in file')
+    }
+    
+    const firstSheetData = processedSheets[sheetNames[0]]
+    console.log(`✅ Successfully parsed XLSX file by [${caller}]:`, firstSheetData.length, 'rows (secured)')
     
     // Show data comparison for debugging
     if (caller) {
-      console.log(`🔍 [${caller}] Data preview - First 5 rows:`)
-      for (let i = 0; i < Math.min(5, (jsonData as any[][]).length); i++) {
-        const row = (jsonData as any[][])[i]
+      console.log(`🔍 [${caller}] Data preview - First 5 rows (sanitized):`)
+      for (let i = 0; i < Math.min(5, firstSheetData.length); i++) {
+        const row = firstSheetData[i]
         console.log(`  [${caller}] Row ${i + 1}:`, row?.slice(0, 5) || 'empty')
       }
     }
     
-    return { values: jsonData as any[][] }
+    return { values: firstSheetData }
     
   } catch (error) {
-    console.error('❌ Direct XLSX read failed:', error)
-    console.error('� REFUSING to use mock data in direct read - will let conversion try')
+    console.error('❌ Secure XLSX read failed:', error)
+    
+    // Log security context
+    if (error instanceof Error) {
+      console.error('🛡️ Security context:', {
+        vulnerabilities: SECURITY_INFO.vulnerabilities.length,
+        mitigations: SECURITY_INFO.mitigations,
+        errorType: error.name
+      })
+    }
+    
     throw error
   }
 }

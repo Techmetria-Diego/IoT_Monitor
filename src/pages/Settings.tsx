@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { SecurityStatusCard } from '@/components/SecurityStatusCard'
 import { toast } from 'sonner'
 import {
   ShieldCheck,
@@ -509,6 +510,11 @@ const SettingsPage = () => {
           </form>
         </Form>
       </Card>
+
+      {/* Security Status Card */}
+      <div className="section-spacing">
+        <SecurityStatusCard />
+      </div>
     </div>
   )
 }
