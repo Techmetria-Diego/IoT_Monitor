@@ -98,7 +98,6 @@ const triggerSimpleAuthLogin = () => {
 }
 
 export const useAppStore = create<AppState & AppActions>()(
-  // @ts-expect-error - Zustand persist typing issue with complex state and partialize
   persist(
     (set, get) => ({
       ...initialState,

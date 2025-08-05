@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('storage', syncAuth)
       clearInterval(intervalId)
     }
-  }, [])
+  }, [isLoggedIn])
 
   const login = () => {
     console.log('🔐 [AUTH] Executando login...')

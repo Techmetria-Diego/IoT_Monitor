@@ -15,8 +15,8 @@ const MAIN_FOLDER_ID = '1Rv4SQ8yutdF71WGOltUoUdFT3eTEmMYA'
 // Import secure xlsx wrapper
 import { secureXlsxRead, validateXlsxFile, SECURITY_INFO } from './secure-xlsx'
 
-// PKCE helper functions for improved OAuth security
-const generateCodeVerifier = (): string => {
+// PKCE helper functions for improved OAuth security (reserved for future use)
+const _generateCodeVerifier = (): string => {
   const array = new Uint8Array(32)
   crypto.getRandomValues(array)
   return btoa(String.fromCharCode.apply(null, Array.from(array)))
@@ -25,7 +25,7 @@ const generateCodeVerifier = (): string => {
     .replace(/=/g, '')
 }
 
-const generateCodeChallenge = async (codeVerifier: string): Promise<string> => {
+const _generateCodeChallenge = async (codeVerifier: string): Promise<string> => {
   const encoder = new TextEncoder()
   const data = encoder.encode(codeVerifier)
   const digest = await crypto.subtle.digest('SHA-256', data)

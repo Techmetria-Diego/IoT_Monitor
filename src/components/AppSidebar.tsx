@@ -41,20 +41,17 @@ const mainMenuItems = [
     href: '/',
     label: 'Dashboard',
     icon: Gauge,
-    description: 'Visão geral do sistema'
   },
   {
     href: '/alerts',
     label: 'Alertas',
     icon: AlertTriangle,
-    description: 'Condomínios com problemas',
     showBadge: true
   },
   {
     href: '/search',
     label: 'Busca Avançada',
     icon: Search,
-    description: 'Pesquisar relatórios'
   },
 ]
 
@@ -63,7 +60,6 @@ const secondaryMenuItems = [
     href: '/settings',
     label: 'Configurações',
     icon: Settings,
-    description: 'Ajustes do sistema'
   },
 ]
 
@@ -77,23 +73,22 @@ const MenuItem = memo(({ item, isActive, alertsCount }: {
     <NavLink to={item.href} className="w-full">
       <SidebarMenuButton
         isActive={isActive}
-        className="sidebar-menu-item w-full justify-start h-10 xl:h-12 px-2 xl:px-3 group transition-all duration-200 hover:bg-primary/10"
+        className="sidebar-menu-item w-full justify-start h-12 px-3 group transition-all duration-200 hover:bg-primary/10"
       >
-        <div className="flex items-center gap-2 xl:gap-3 flex-1 min-w-0">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={cn(
-            "sidebar-icon flex items-center justify-center w-6 h-6 xl:w-8 xl:h-8 rounded-lg transition-colors flex-shrink-0",
+            "sidebar-icon flex items-center justify-center w-8 h-8 rounded-lg transition-colors flex-shrink-0",
             isActive 
               ? "bg-primary text-primary-foreground" 
               : "bg-muted group-hover:bg-primary/20"
           )}>
-            <item.icon className="h-3 w-3 xl:h-4 xl:w-4" />
+            <item.icon className="h-4 w-4" />
           </div>
-          <div className="flex flex-col items-start flex-1 min-w-0 overflow-hidden">
-            <span className="sidebar-text font-medium text-xs xl:text-sm truncate w-full">{item.label}</span>
-            <span className="sidebar-text text-xs xl:text-xs text-muted-foreground truncate w-full">{item.description}</span>
+          <div className="flex items-center flex-1 min-w-0 overflow-hidden">
+            <span className="font-medium text-sm truncate w-full">{item.label}</span>
           </div>
           {item.showBadge && alertsCount > 0 && (
-            <Badge variant="destructive" className="ml-auto text-xs px-1 xl:px-2 py-1 flex-shrink-0">
+            <Badge variant="destructive" className="ml-auto text-xs px-2 py-1 flex-shrink-0">
               {alertsCount}
             </Badge>
           )}

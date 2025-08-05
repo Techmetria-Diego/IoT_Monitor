@@ -116,9 +116,9 @@ export const AlertSummaryCard = ({
               <h4 className="text-sm font-semibold text-muted-foreground">
                 Condomínios com maior urgência:
               </h4>
-              <ul className="space-y-2">
-                {alertedReports.slice(0, 3).map((report) => (
-                  <li
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {alertedReports.slice(0, 6).map((report) => (
+                  <div
                     key={report.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-background hover:bg-muted/80 transition-colors cursor-pointer shadow-sm border"
                     onClick={() => navigate(`/relatorio/${report.id}`)}
@@ -141,13 +141,13 @@ export const AlertSummaryCard = ({
                     >
                       {report.status === 'error' ? 'Crítico' : 'Alerta'}
                     </Badge>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
-            {alertedReports.length > 3 && (
+            {alertedReports.length > 6 && (
               <p className="text-xs text-center text-muted-foreground mt-3">
-                e mais {alertedReports.length - 3}...
+                e mais {alertedReports.length - 6}...
               </p>
             )}
           </CardContent>
