@@ -24,6 +24,7 @@ import {
   AlertCircle,
   Users,
   Droplets,
+  Flame,
   TriangleAlert,
   ShieldCheck,
   TrendingUp,
@@ -31,6 +32,7 @@ import {
   Minus,
   Download,
   ChevronDown,
+  FileText,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -64,6 +66,7 @@ const ReportDetails = () => {
     settings,
     invalidateReportsCache,
     credentials,
+    reports,
   } = useAppStore()
   const isMobile = useIsMobile()
 
@@ -191,6 +194,32 @@ const ReportDetails = () => {
       toast.error('Erro ao baixar o relatório Excel. Tente novamente.')
       console.error('Erro no download Excel:', error)
     }
+  }
+
+  // Função para obter o ícone do serviço
+  const getServiceIcon = (serviceType?: 'water' | 'gas' | 'unknown') => {
+    switch (serviceType) {
+      case 'water':
+        return <Droplets className="h-6 w-6 text-blue-500" />
+      case 'gas':
+        return <Flame className="h-6 w-6 text-orange-500" />
+      default:
+        return <FileText className="h-6 w-6 text-gray-500" />
+    }
+  }
+
+  // Buscar o serviceType do relatório atual
+  const getCurrentReportServiceType = (): 'water' | 'gas' | 'unknown' => {
+    if (!reportId || !reports) return 'unknown'
+    
+    // Buscar em todos os períodos pelo reportId atual
+    for (const periodReports of Object.values(reports)) {
+      const report = periodReports.find(r => r.id === reportId)
+      if (report) {
+        return report.serviceType || 'unknown'
+      }
+    }
+    return 'unknown'
   }
 
   const downloadPDF = async () => {
@@ -787,8 +816,9 @@ const ReportDetails = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <h1 className="page-title">
+          <h1 className="page-title flex items-center gap-3">
             Relatório: {currentReport.name.replace(/^Dash\s*-?\s*/i, '')}
+            {getServiceIcon(getCurrentReportServiceType())}
           </h1>
         </div>
       </div>

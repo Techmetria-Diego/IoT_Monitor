@@ -358,8 +358,7 @@ const PeriodDetails = () => {
         </div>
       </div>
 
-      {isLoading &&
-        !reportList.length &&
+      {(isLoading || (!sortedReportList.length && !error)) &&
         (viewMode === 'grid' ? (
           <div className="content-grid-4">
             {[...Array(8)].map((_, i) => (
