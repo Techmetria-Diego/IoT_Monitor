@@ -77,23 +77,23 @@ const MenuItem = memo(({ item, isActive, alertsCount }: {
     <NavLink to={item.href} className="w-full">
       <SidebarMenuButton
         isActive={isActive}
-        className="w-full justify-start h-12 px-3 group transition-all duration-200 hover:bg-primary/10"
+        className="sidebar-menu-item w-full justify-start h-10 xl:h-12 px-2 xl:px-3 group transition-all duration-200 hover:bg-primary/10"
       >
-        <div className="flex items-center gap-3 flex-1">
+        <div className="flex items-center gap-2 xl:gap-3 flex-1 min-w-0">
           <div className={cn(
-            "flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
+            "sidebar-icon flex items-center justify-center w-6 h-6 xl:w-8 xl:h-8 rounded-lg transition-colors flex-shrink-0",
             isActive 
               ? "bg-primary text-primary-foreground" 
               : "bg-muted group-hover:bg-primary/20"
           )}>
-            <item.icon className="h-4 w-4" />
+            <item.icon className="h-3 w-3 xl:h-4 xl:w-4" />
           </div>
-          <div className="flex flex-col items-start flex-1">
-            <span className="font-medium text-sm">{item.label}</span>
-            <span className="text-xs text-muted-foreground">{item.description}</span>
+          <div className="flex flex-col items-start flex-1 min-w-0 overflow-hidden">
+            <span className="sidebar-text font-medium text-xs xl:text-sm truncate w-full">{item.label}</span>
+            <span className="sidebar-text text-xs xl:text-xs text-muted-foreground truncate w-full">{item.description}</span>
           </div>
           {item.showBadge && alertsCount > 0 && (
-            <Badge variant="destructive" className="ml-auto text-xs px-2 py-1">
+            <Badge variant="destructive" className="ml-auto text-xs px-1 xl:px-2 py-1 flex-shrink-0">
               {alertsCount}
             </Badge>
           )}
@@ -154,14 +154,14 @@ export const AppSidebar = () => {
   }
 
   return (
-    <Sidebar className="border-r border-border/50">
+    <Sidebar className="border-r border-border/50 sidebar-compact-mode">
       <SidebarContent className="flex flex-col bg-gradient-to-b from-background to-muted/20">
-        <SidebarHeader className="px-6 py-6 border-b border-border/50">
-          <div className="flex items-center gap-3">
-            <img src="/tech.png" alt="Logo" className="h-12 w-auto object-contain" />
-            <div className="flex flex-col ml-0.5">
-              <h1 className="text-lg font-bold text-foreground whitespace-nowrap">IOT Monitor</h1>
-              <span className="text-xs text-muted-foreground whitespace-nowrap">Sistema de Monitoramento</span>
+        <SidebarHeader className="sidebar-responsive-padding border-b border-border/50">
+          <div className="flex items-center sidebar-responsive-gap min-w-0 overflow-hidden">
+            <img src="/tech.png" alt="Logo" className="h-10 xl:h-12 w-auto object-contain flex-shrink-0" />
+            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+              <h1 className="sidebar-responsive-title font-bold text-foreground truncate">IOT Monitor</h1>
+              <span className="sidebar-responsive-subtitle text-muted-foreground truncate">Sistema de Monitoramento</span>
             </div>
           </div>
         </SidebarHeader>
@@ -198,11 +198,11 @@ export const AppSidebar = () => {
         <SidebarFooter className="p-4">
           <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
             <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-primary" />
-                <CardTitle className="text-sm">Precisa de Ajuda?</CardTitle>
+              <div className="flex items-center gap-2 min-w-0">
+                <HelpCircle className="h-4 w-4 text-primary flex-shrink-0" />
+                <CardTitle className="text-sm truncate">Precisa de Ajuda?</CardTitle>
               </div>
-              <CardDescription className="text-xs">
+              <CardDescription className="text-xs truncate">
                 Acesse nossa documentação completa
               </CardDescription>
             </CardHeader>
@@ -210,11 +210,11 @@ export const AppSidebar = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="w-full text-xs border-primary/30 hover:bg-primary/10"
+                className="w-full text-xs border-primary/30 hover:bg-primary/10 min-w-0"
                 onClick={() => navigate('/docs')}
               >
-                <ExternalLink className="h-3 w-3 mr-2" />
-                Documentação
+                <ExternalLink className="h-3 w-3 mr-2 flex-shrink-0" />
+                <span className="truncate">Documentação</span>
               </Button>
             </CardContent>
           </Card>
@@ -222,14 +222,14 @@ export const AppSidebar = () => {
           <Button
             variant="ghost"
             size="sm"
-            className="w-full mt-4 flex items-center justify-center gap-2 text-destructive hover:bg-destructive/10"
+            className="w-full mt-4 flex items-center justify-center gap-2 text-destructive hover:bg-destructive/10 min-w-0"
             onClick={() => {
               logout()
               navigate('/login')
             }}
           >
-            <LogOut className="h-4 w-4" />
-            Sair
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Sair</span>
           </Button>
         </SidebarFooter>
       </SidebarContent>
