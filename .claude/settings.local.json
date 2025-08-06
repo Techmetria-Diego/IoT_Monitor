@@ -18,7 +18,8 @@
       "Bash(pnpm run:*)",
       "mcp__ide__getDiagnostics",
       "Bash(npx tailwindcss:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(node:*)"
     ],
     "deny": []
   }

@@ -494,6 +494,7 @@ const calculateReportStatus = async (
         return 'numeroserie'
       }
       else if (headerText.includes('dispositivo') || originalText.includes('DISPOSITIVO')) {
+        console.log(`✅ MATCHED DISPOSITIVO: "${originalText}" → dispositivo`)
         return 'dispositivo'
       }
       else if (headerText.includes('lido de') || originalText.includes('LIDO DE')) {
@@ -515,8 +516,8 @@ const calculateReportStatus = async (
       else if (headerText.includes('tendência') || headerText.includes('tendencia') || originalText.includes('TENDÊNCIA')) {
         return 'tendencia'
       }
-      // Skip DISPOSITIVO and STATUS columns (not used) - SAME AS fetchReportDetails
-      else if (originalText.includes('DISPOSITIVO') || originalText.includes('STATUS')) {
+      // Skip only STATUS column (not used) - SAME AS fetchReportDetails
+      else if (originalText.includes('STATUS')) {
         console.log(`🚫 SKIPPING: "${originalText}" (not used)`)
         return 'skip'
       }
@@ -1026,8 +1027,8 @@ export const gdriveApi = {
         console.log(`✅ MATCHED TENDÊNCIA: "${originalText}" → tendencia`)
         return 'tendencia'
       }
-      // Skip DISPOSITIVO and STATUS columns (not used)
-      else if (originalText.includes('DISPOSITIVO') || originalText.includes('STATUS')) {
+      // Skip only STATUS column (not used)
+      else if (originalText.includes('STATUS')) {
         console.log(`🚫 SKIPPING: "${originalText}" (not used)`)
         return 'skip'
       }
@@ -1129,6 +1130,7 @@ export const gdriveApi = {
         id: `unit-${i}`,
         unidade: row[headerIndexMap['unidade']] || `Unidade ${i}`,
         numeroDeSerie: serialNumber,
+        dispositivo: row[headerIndexMap['dispositivo']] || '',
         leituraAnterior:
           parseFloat(row[headerIndexMap['leituraanterior']]) || 0,
         leituraAtual: parseFloat(row[headerIndexMap['leituraatual']]) || 0,

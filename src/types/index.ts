@@ -20,6 +20,7 @@ export interface UnitData {
   id: string | number
   unidade: string
   numeroDeSerie?: string
+  dispositivo?: string
   leituraAnterior: number
   leituraAtual: number
   consumo: number

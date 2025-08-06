@@ -27,9 +27,6 @@ import {
   Flame,
   TriangleAlert,
   ShieldCheck,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Download,
   ChevronDown,
   FileText,
@@ -542,19 +539,6 @@ const ReportDetails = () => {
     }
   }
 
-  const getTendencyIcon = (tendencia: UnitData['tendencia']) => {
-    switch (tendencia) {
-      case 'Aumento Crítico':
-      case 'Aumento':
-        return <TrendingUp className="h-4 w-4 text-destructive" />
-      case 'Estável':
-        return <Minus className="h-4 w-4 text-muted-foreground" />
-      case 'Crédito/Erro':
-        return <TrendingDown className="h-4 w-4 text-blue-500" />
-      default:
-        return <Minus className="h-4 w-4 text-muted-foreground" />
-    }
-  }
 
   const getTendencyBadge = (tendencia: string, isHighConsumption: boolean) => {
     // Check if it's high consumption based on the TENDÊNCIA column
@@ -584,6 +568,8 @@ const ReportDetails = () => {
             <TableRow>
               <TableHead>Unidade</TableHead>
               <TableHead>Nº de Série</TableHead>
+              <TableHead>Dispositivo</TableHead>
+              <TableHead>Última Leitura</TableHead>
               <TableHead className="text-right">Leitura Anterior</TableHead>
               <TableHead className="text-right">Leitura Atual</TableHead>
               <TableHead className="text-right">Consumo (m³)</TableHead>
@@ -597,8 +583,10 @@ const ReportDetails = () => {
                 key={unit.id || index}
                 className={cn(unit.isHighConsumption && 'bg-destructive/10')}
               >
-                <TableCell className="font-medium">{unit.unidade}</TableCell>
+                <TableCell className="font-medium">{getUnitNumber(unit.unidade)}</TableCell>
                 <TableCell>{unit.numeroDeSerie}</TableCell>
+                <TableCell className="whitespace-nowrap">{unit.dispositivo || 'N/A'}</TableCell>
+                <TableCell className="whitespace-nowrap">{formatDateBrazilian(unit.dataLeitura || '')}</TableCell>
                 <TableCell className="text-right">
                   {unit.leituraAnterior.toFixed(2)}
                 </TableCell>
@@ -607,7 +595,7 @@ const ReportDetails = () => {
                 </TableCell>
                 <TableCell
                   className={cn(
-                    'text-right font-semibold',
+                    'text-right font-semibold whitespace-nowrap',
                     unit.isHighConsumption && 'text-destructive',
                   )}
                 >
@@ -620,10 +608,7 @@ const ReportDetails = () => {
                   {unit.projecao30Dias.toFixed(2)}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    {getTendencyIcon(unit.tendencia)}
-                    {getTendencyBadge(unit.tendencia, unit.isHighConsumption)}
-                  </div>
+                  {getTendencyBadge(unit.tendencia, unit.isHighConsumption)}
                 </TableCell>
               </TableRow>
             ))}
@@ -644,14 +629,13 @@ const ReportDetails = () => {
         >
           <CardHeader className="card-responsive pb-3 sm:pb-4">
             <CardTitle className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <span className="text-base sm:text-lg">Unidade: {unit.unidade}</span>
+              <span className="text-base sm:text-lg">Unidade: {getUnitNumber(unit.unidade)}</span>
               <div className="flex items-center gap-1 self-start sm:self-center">
-                {getTendencyIcon(unit.tendencia)}
                 {getTendencyBadge(unit.tendencia, unit.isHighConsumption)}
               </div>
             </CardTitle>
             <CardDescription className="text-sm">
-              Nº de Série: {unit.numeroDeSerie}
+              Nº de Série: {unit.numeroDeSerie} | Dispositivo: {unit.dispositivo || 'N/A'} | Última Leitura: {formatDateBrazilian(unit.dataLeitura || '')}
             </CardDescription>
           </CardHeader>
           <CardContent className="card-responsive pt-0">
@@ -699,16 +683,156 @@ const ReportDetails = () => {
     }]
   };
 
-  // Função para extrair label curto da unidade
-  function getShortLabel(unidade = '') {
-    // Extrai apenas números ou o final do nome
-    const match = unidade.match(/\d{2,4}/);
-    return match ? match[0] : unidade.slice(-6);
+
+  // Função para formatar data no formato brasileiro
+  function formatDateBrazilian(dateString: string): string {
+    if (!dateString || dateString.trim() === '') return 'N/A'
+    
+    const trimmedDate = dateString.trim()
+    
+    try {
+      let date: Date
+      
+      // Se já está no formato brasileiro (dd/MM/aaaa), retorna como está
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmedDate)) {
+        return trimmedDate
+      }
+      
+      // Verifica se é um número (serial date do Excel)
+      const numericDate = parseFloat(trimmedDate)
+      if (!isNaN(numericDate) && numericDate > 40000 && numericDate < 50000) {
+        // Converte número serial do Excel para data (base: 1 de janeiro de 1900)
+        const excelEpoch = new Date(1900, 0, 1)
+        date = new Date(excelEpoch.getTime() + (numericDate - 2) * 24 * 60 * 60 * 1000)
+      }
+      // Tenta parsear diferentes formatos ISO
+      else if (trimmedDate.includes('-')) {
+        // Formatos como: 2025-08-04, 2025-08-04 9:02:44, 2025-08-04T09:02:44
+        let isoString = trimmedDate
+        const hasOriginalTime = trimmedDate.includes(' ') || trimmedDate.includes('T')
+        
+        // Se tem espaço no lugar do T, substitui
+        if (isoString.includes(' ') && !isoString.includes('T')) {
+          isoString = isoString.replace(' ', 'T')
+        }
+        
+        // Se não tem horário, adiciona 00:00:00
+        if (!isoString.includes('T') && !isoString.includes(' ')) {
+          isoString += 'T00:00:00'
+        }
+        
+        // Se o horário não tem segundos, adiciona :00
+        if (isoString.includes('T') && isoString.split('T')[1].split(':').length === 2) {
+          isoString += ':00'
+        }
+        
+        date = new Date(isoString)
+        
+        // Salva informação se tinha horário original
+        date._hasOriginalTime = hasOriginalTime
+      }
+      // Outros formatos, tenta parsear diretamente
+      else {
+        date = new Date(trimmedDate)
+      }
+      
+      // Verifica se a data é válida
+      if (isNaN(date.getTime())) {
+        // Se não conseguiu parsear de forma alguma, força formato brasileiro assumindo que seja ISO
+        if (trimmedDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+          const parts = trimmedDate.split(/[-T\s]/);
+          if (parts.length >= 3) {
+            const [year, month, day] = parts;
+            const hasTime = parts.length > 3 && parts[3];
+            if (hasTime) {
+              const timePart = parts[3];
+              return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year} ${timePart}`;
+            }
+            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+          }
+        }
+        return 'N/A'
+      }
+      
+      // Formatar para dd/MM/aaaa HH:mm:ss
+      const day = date.getDate().toString().padStart(2, '0')
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      const year = date.getFullYear()
+      const hours = date.getHours().toString().padStart(2, '0')
+      const minutes = date.getMinutes().toString().padStart(2, '0')
+      const seconds = date.getSeconds().toString().padStart(2, '0')
+      
+      // Se tinha horário original ou se o horário não é 00:00:00, mostra com horário
+      if (date._hasOriginalTime || !(hours === '00' && minutes === '00' && seconds === '00')) {
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
+      }
+      
+      // Se não tinha horário original e é 00:00:00, só mostra a data
+      return `${day}/${month}/${year}`
+    } catch (error) {
+      // Como último recurso, tenta extrair manualmente do formato ISO
+      if (trimmedDate.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const parts = trimmedDate.split(/[-T\s]/);
+        if (parts.length >= 3) {
+          const [year, month, day] = parts;
+          const hasTime = parts.length > 3 && parts[3];
+          if (hasTime) {
+            const timePart = parts[3];
+            return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year} ${timePart}`;
+          }
+          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+        }
+      }
+      return 'N/A'
+    }
+  }
+
+  // Função para extrair apenas o número da unidade
+  function getUnitNumber(unidade = '') {
+    // Verifica se contém "área comum" (case insensitive)
+    const lowerUnidade = unidade.toLowerCase();
+    
+    // Se contém "área comum", procura por "AC" ou "Área Comum" no texto original
+    if (lowerUnidade.includes('área comum') || lowerUnidade.includes('area comum')) {
+      // Procura por "AC" isolado (com espaços ou no final/início)
+      const acMatch = unidade.match(/\b(AC)\b/i);
+      if (acMatch) {
+        return acMatch[1];
+      }
+      
+      // Procura por "Área Comum" com qualquer capitalização
+      const areaComumMatch = unidade.match(/(Á|á)rea\s+(C|c)omum/i);
+      if (areaComumMatch) {
+        return areaComumMatch[0];
+      }
+      
+      // Fallback para "Área Comum" se não encontrou nenhum padrão específico
+      return "Área Comum";
+    }
+    
+    // Verifica padrão "Bloco XX - AC - XXXX" e formata como "AC.XX"
+    const blocoACMatch = unidade.match(/Bloco\s+(\d+)\s*-\s*AC\s*-\s*(\d+)/i);
+    if (blocoACMatch) {
+      const numeroBloco = blocoACMatch[1].padStart(2, '0'); // Garante 2 dígitos para o bloco
+      return `AC.${numeroBloco}`;
+    }
+    
+    // Verifica padrão "Bloco XX - APTO - XXXX" e formata como "XXXX.XX"
+    const blocoAptoMatch = unidade.match(/Bloco\s+(\d+)\s*-\s*APTO\s*-\s*(\d+)/i);
+    if (blocoAptoMatch) {
+      const numeroBloco = blocoAptoMatch[1].padStart(2, '0'); // Garante 2 dígitos para o bloco
+      const numeroApto = blocoAptoMatch[2];
+      return `${numeroApto}.${numeroBloco}`;
+    }
+    
+    // Para unidades normais, procura por padrões como "Apto-XXXX.XX" ou "XXXX.XX"
+    const match = unidade.match(/\d+\.\d+|\d{4}|\d{3}/);
+    return match ? match[0] : unidade;
   }
 
   const topConsumos = currentReport?.units ? [...currentReport.units].sort((a, b) => b.consumo - a.consumo).slice(0, 5) : [];
   const consumoChartData = {
-    labels: topConsumos.map(u => getShortLabel(u.unidade)),
+    labels: topConsumos.map(u => getUnitNumber(u.unidade)),
     datasets: [{
       label: 'Consumo (m³)',
       data: topConsumos.map(u => u.consumo),
@@ -826,47 +950,47 @@ const ReportDetails = () => {
       <div className="section-spacing">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Card Total de Unidades */}
-          <Card className="flex flex-row items-center bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 p-5 min-h-[110px]">
+          <Card className="flex flex-row items-center bg-card border-border rounded-2xl shadow-md hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 p-5 min-h-[110px]">
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold text-blue-700 mb-1">Total de Unidades</span>
-              <span className="text-3xl font-bold text-blue-800">{currentReport?.totalUnits}</span>
-              <span className="text-xs text-blue-600 mt-1">unidades monitoradas</span>
+              <span className="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-1">Total de Unidades</span>
+              <span className="text-3xl font-bold text-blue-800 dark:text-blue-300">{currentReport?.totalUnits}</span>
+              <span className="text-xs text-blue-600 dark:text-blue-400 mt-1">unidades monitoradas</span>
             </div>
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-100 ml-4">
-              <Users className="h-7 w-7 text-blue-600" />
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/30 ml-4">
+              <Users className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
           </Card>
 
           {/* Card Unidades em Alerta */}
-          <Card className="flex flex-row items-center bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 p-5 min-h-[110px]">
+          <Card className="flex flex-row items-center bg-card border-border rounded-2xl shadow-md hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 p-5 min-h-[110px]">
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold text-red-700 mb-1">Unidades em Alerta</span>
-              <span className="text-3xl font-bold text-red-800">{currentReport?.highConsumptionUnitsCount}</span>
-              <span className="text-xs text-red-600 mt-1">consumo elevado</span>
+              <span className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Unidades em Alerta</span>
+              <span className="text-3xl font-bold text-red-800 dark:text-red-300">{currentReport?.highConsumptionUnitsCount}</span>
+              <span className="text-xs text-red-600 dark:text-red-400 mt-1">consumo elevado</span>
             </div>
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 ml-4">
-              <TriangleAlert className="h-7 w-7 text-red-600" />
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 ml-4">
+              <TriangleAlert className="h-7 w-7 text-red-600 dark:text-red-400" />
             </div>
           </Card>
 
           {/* Card Consumo Médio */}
-          <Card className="flex flex-row items-center bg-white rounded-2xl shadow-md hover:shadow-lg transition-all duration-300 p-5 min-h-[110px]">
+          <Card className="flex flex-row items-center bg-card border-border rounded-2xl shadow-md hover:shadow-lg dark:hover:shadow-xl transition-all duration-300 p-5 min-h-[110px]">
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-semibold text-emerald-700 mb-1">Consumo Médio</span>
-              <span className="text-3xl font-bold text-emerald-800">{currentReport?.averageConsumption.toFixed(2)}</span>
-              <span className="text-xs text-emerald-600 mt-1">m³ por unidade</span>
+              <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Consumo Médio</span>
+              <span className="text-3xl font-bold text-emerald-800 dark:text-emerald-300">{currentReport?.averageConsumption.toFixed(2)}</span>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">m³ por unidade</span>
             </div>
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 ml-4">
-              <Droplets className="h-7 w-7 text-emerald-600" />
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 ml-4">
+              <Droplets className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
             </div>
           </Card>
         </div>
 
         {/* Cards de Gráficos: Distribuição por Tendência e Top 5 Maiores Consumos */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-          <Card className="bg-white rounded-2xl shadow-md overflow-hidden">
-            <CardHeader className="px-4 py-3 border-b bg-gray-50/50">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <Card className="bg-card border-border rounded-2xl shadow-md dark:shadow-xl overflow-hidden">
+            <CardHeader className="px-4 py-3 border-b border-border bg-muted/20">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <span><i className="fas fa-chart-pie text-xl" /></span>
                 Distribuição por Tendência
               </CardTitle>
@@ -906,9 +1030,9 @@ const ReportDetails = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-white rounded-2xl shadow-md overflow-hidden">
-            <CardHeader className="px-4 py-3 border-b bg-gray-50/50">
-              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <Card className="bg-card border-border rounded-2xl shadow-md dark:shadow-xl overflow-hidden">
+            <CardHeader className="px-4 py-3 border-b border-border bg-muted/20">
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold text-card-foreground">
                 <span><i className="fas fa-chart-bar text-xl" /></span>
                 Top 5 Maiores Consumos
               </CardTitle>
@@ -950,7 +1074,7 @@ const ReportDetails = () => {
                           maxRotation: 0,
                           minRotation: 0,
                           font: { size: 12 },
-                          color: '#374151',
+                          color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
                           padding: 5
                         },
                         grid: { 
@@ -963,14 +1087,14 @@ const ReportDetails = () => {
                       y: {
                         beginAtZero: true,
                         grid: { 
-                          color: '#f3f4f6'
+                          color: document.documentElement.classList.contains('dark') ? '#374151' : '#f3f4f6'
                         },
                         border: {
                           display: false
                         },
                         ticks: { 
                           font: { size: 12 }, 
-                          color: '#374151',
+                          color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
                           padding: 8,
                           callback: function(value) {
                             return value + ' m³';

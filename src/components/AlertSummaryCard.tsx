@@ -136,7 +136,7 @@ export const AlertSummaryCard = ({
                       className={cn(
                         'flex-shrink-0',
                         report.status === 'alert' &&
-                          'bg-yellow-500 hover:bg-yellow-600 text-black',
+                          'bg-yellow-500 hover:bg-yellow-600 text-black dark:text-white',
                       )}
                     >
                       {report.status === 'error' ? 'Crítico' : 'Alerta'}

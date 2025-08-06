@@ -271,7 +271,7 @@ const AlertsOverview = () => {
                           className={cn(
                             "text-xs whitespace-nowrap",
                             report.status === 'alert' && 
-                            "bg-yellow-500 hover:bg-yellow-600 text-black"
+                            "bg-yellow-500 hover:bg-yellow-600 text-black dark:text-white"
                           )}
                         >
                           {getStatusText(report.status)}

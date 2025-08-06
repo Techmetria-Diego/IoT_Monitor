@@ -24,15 +24,15 @@ interface PeriodCardProps {
 
 const PeriodCard = memo(({ period, index, onClick }: PeriodCardProps) => (
   <Card
-    className="cursor-pointer bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-1 animate-fade-in-up group flex flex-row items-center gap-2 p-4 min-h-[56px]"
+    className="cursor-pointer bg-card hover:bg-accent/50 border-border rounded-lg shadow-sm hover:shadow-lg dark:hover:shadow-xl transition-all duration-200 hover:-translate-y-1 animate-fade-in-up group flex flex-row items-center gap-2 p-4 min-h-[56px]"
     style={{ animationDelay: `${index * 50}ms` }}
     onClick={onClick}
   >
-    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 mr-2">
+    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 mr-2">
       <Folder className="h-6 w-6 text-primary" />
     </div>
     <div className="flex flex-col justify-center flex-1 min-w-0">
-      <div className="text-2xl font-bold text-foreground mb-1 truncate group-hover:text-primary transition-colors">
+      <div className="text-2xl font-bold text-card-foreground mb-1 truncate group-hover:text-primary transition-colors">
         {period.name.replace(/^[0-9]{2}\s*-\s*/, '').replace(/\s*-\s*[0-9]{4}$/, (match) => ` de ${match.trim().slice(-4)}`)}
       </div>
       <div className="flex items-center gap-1 text-sm text-muted-foreground">

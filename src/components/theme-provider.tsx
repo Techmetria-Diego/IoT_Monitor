@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/stores/app-store'
 
 type ThemeProviderProps = {
@@ -6,40 +6,57 @@ type ThemeProviderProps = {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const theme = useAppStore((state) => state.settings?.theme || 'light')
+  const settings = useAppStore((state) => state.settings)
+  const theme = settings?.theme || 'light'
+  const [currentTheme, setCurrentTheme] = useState<string>('light')
 
-  // Debug: verificar o que está chegando do store
+  // Sistema de detecção de tema do sistema
   useEffect(() => {
-    console.log('🔍 ThemeProvider - tema recebido do store:', theme)
-  }, [theme])
-
-  useEffect(() => {
-    const root = window.document.documentElement
-
-    // Garantir que pelo menos uma classe de tema esteja aplicada
-    root.classList.remove('light', 'dark')
-
-    try {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    
+    const updateTheme = () => {
+      const root = window.document.documentElement
+      
+      // Remove todas as classes de tema
+      root.classList.remove('light', 'dark')
+      
+      let appliedTheme = 'light'
+      
       if (theme === 'system') {
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-          .matches
-          ? 'dark'
-          : 'light'
-        root.classList.add(systemTheme)
-        console.log('🎨 Tema sistema aplicado:', systemTheme)
-      } else if (theme === 'dark' || theme === 'light') {
-        root.classList.add(theme)
-        console.log('🎨 Tema aplicado:', theme)
+        appliedTheme = mediaQuery.matches ? 'dark' : 'light'
       } else {
-        // Fallback para tema light se algo der errado
-        root.classList.add('light')
-        console.log('🎨 Fallback para tema light')
+        appliedTheme = theme
       }
-    } catch (error) {
-      console.error('Erro ao aplicar tema:', error)
-      root.classList.add('light') // Fallback seguro
+      
+      // Aplica o tema
+      root.classList.add(appliedTheme)
+      setCurrentTheme(appliedTheme)
+      
+      console.log('🎨 Tema aplicado:', {
+        setting: theme,
+        applied: appliedTheme,
+        systemPreference: mediaQuery.matches ? 'dark' : 'light'
+      })
+    }
+
+    // Aplicar tema inicial
+    updateTheme()
+    
+    // Listener para mudanças no tema do sistema (apenas se tema for 'system')
+    if (theme === 'system') {
+      mediaQuery.addEventListener('change', updateTheme)
+      return () => mediaQuery.removeEventListener('change', updateTheme)
     }
   }, [theme])
+
+  // Debug: log mudanças de tema
+  useEffect(() => {
+    console.log('🔍 ThemeProvider - Estado:', {
+      storeSetting: theme,
+      currentApplied: currentTheme,
+      htmlClass: document.documentElement.className
+    })
+  }, [theme, currentTheme])
 
   return <>{children}</>
 }

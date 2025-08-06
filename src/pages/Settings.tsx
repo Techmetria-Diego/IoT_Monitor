@@ -219,7 +219,24 @@ const SettingsPage = () => {
                     <FormControl>
                       <ThemeToggle
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onValueChange={(newTheme) => {
+                          field.onChange(newTheme)
+                          // Aplicar tema imediatamente
+                          const root = document.documentElement
+                          root.classList.remove('light', 'dark')
+                          
+                          if (newTheme === 'system') {
+                            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+                            root.classList.add(systemTheme)
+                            console.log('🎨 Tema sistema aplicado imediatamente:', systemTheme)
+                          } else {
+                            root.classList.add(newTheme)
+                            console.log('🎨 Tema aplicado imediatamente:', newTheme)
+                          }
+                          
+                          // Salvar no store
+                          updateSettings({ theme: newTheme })
+                        }}
                       />
                     </FormControl>
                   </FormItem>

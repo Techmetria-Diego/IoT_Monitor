@@ -135,6 +135,17 @@
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
+  
+  /* Dark mode debug styles */
+  html.dark {
+    background: var(--background) !important;
+    color: var(--foreground) !important;
+  }
+  
+  html.light {
+    background: var(--background) !important;
+    color: var(--foreground) !important;
+  }
   h1,
   h2,
   h3,
@@ -316,19 +327,50 @@
     background-color: hsl(var(--foreground));
   }
   
-  /* Sidebar responsive improvements for standard resolutions */
-  @media screen and (max-width: 1366px) {
-    /* Adjustments for smaller screens or 100% zoom on standard monitors */
+  /* Default sidebar styles - prevent zoom-based scaling issues */
+  .sidebar-responsive-text {
+    @apply text-sm;
+  }
+  
+  .sidebar-responsive-title {
+    @apply text-base;
+    font-size: 1rem !important; /* Force consistent size regardless of zoom */
+  }
+  
+  .sidebar-responsive-subtitle {
+    @apply text-sm;
+    font-size: 0.875rem !important; /* Force consistent size regardless of zoom */
+    line-height: 1.25 !important; /* Tight line height for better spacing */
+    word-wrap: break-word;
+    hyphens: auto;
+  }
+  
+  .sidebar-responsive-padding {
+    @apply px-4 py-5;
+  }
+  
+  .sidebar-responsive-gap {
+    @apply gap-3;
+  }
+
+  /* Sidebar responsive improvements for truly smaller screens */
+  @media screen and (max-width: 1024px) {
+    /* Adjustments only for truly smaller screens, not zoom-related */
     .sidebar-responsive-text {
       @apply text-xs;
     }
     
     .sidebar-responsive-title {
       @apply text-sm;
+      font-size: 0.875rem !important;
     }
     
     .sidebar-responsive-subtitle {
       @apply text-xs;
+      font-size: 0.75rem !important;
+      line-height: 1.25 !important; /* Tight line height for better spacing */
+      word-wrap: break-word;
+      hyphens: auto;
     }
     
     .sidebar-responsive-padding {

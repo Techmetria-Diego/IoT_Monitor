@@ -63,7 +63,7 @@ const secondaryMenuItems = [
   },
 ]
 
-// Memoized menu item component for better performance
+// Modern menu item component with clean design
 const MenuItem = memo(({ item, isActive, alertsCount }: {
   item: typeof mainMenuItems[0]
   isActive: boolean
@@ -72,23 +72,29 @@ const MenuItem = memo(({ item, isActive, alertsCount }: {
   <SidebarMenuItem>
     <NavLink to={item.href} className="w-full">
       <SidebarMenuButton
-        isActive={isActive}
-        className="sidebar-menu-item w-full justify-start h-12 px-3 group transition-all duration-200 hover:bg-primary/10"
+        className={cn(
+          "w-full justify-start h-11 px-3 rounded-xl transition-all duration-200 border-0",
+          "hover:scale-[1.02] hover:shadow-md active:scale-[0.98]",
+          isActive
+            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700"
+            : "bg-card text-card-foreground hover:bg-accent/50 shadow-sm hover:shadow-md"
+        )}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className={cn(
-            "sidebar-icon flex items-center justify-center w-8 h-8 rounded-lg transition-colors flex-shrink-0",
-            isActive 
-              ? "bg-primary text-primary-foreground" 
-              : "bg-muted group-hover:bg-primary/20"
+            "flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200 flex-shrink-0",
+            isActive
+              ? "bg-white/20 text-white hover:text-white hover:bg-white/30"
+              : "bg-accent text-muted-foreground"
           )}>
             <item.icon className="h-4 w-4" />
           </div>
-          <div className="flex items-center flex-1 min-w-0 overflow-hidden">
-            <span className="font-medium text-sm truncate w-full">{item.label}</span>
-          </div>
+          <span className={cn(
+            "font-medium text-sm truncate flex-1 transition-colors duration-200",
+            isActive && "text-white hover:text-white"
+          )}>{item.label}</span>
           {item.showBadge && alertsCount > 0 && (
-            <Badge variant="destructive" className="ml-auto text-xs px-2 py-1 flex-shrink-0">
+            <Badge variant="destructive" className="text-xs px-2 py-1 rounded-full shadow-sm">
               {alertsCount}
             </Badge>
           )}
@@ -149,55 +155,56 @@ export const AppSidebar = () => {
   }
 
   return (
-    <Sidebar className="border-r border-border/50 sidebar-compact-mode">
-      <SidebarContent className="flex flex-col bg-gradient-to-b from-background to-muted/20">
-        <SidebarHeader className="sidebar-responsive-padding border-b border-border/50">
+    <Sidebar className="border-r-0 sidebar-compact-mode shadow-xl">
+      <SidebarContent className="flex flex-col bg-background border-r border-border">
+        <SidebarHeader className="sidebar-responsive-padding p-6 border-b border-border">
           <div className="flex items-center sidebar-responsive-gap min-w-0 overflow-hidden">
             <img src="/tech.png" alt="Logo" className="h-10 xl:h-12 w-auto object-contain flex-shrink-0" />
             <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
               <h1 className="sidebar-responsive-title font-bold text-foreground truncate">IOT Monitor</h1>
-              <span className="sidebar-responsive-subtitle text-muted-foreground truncate">Sistema de Monitoramento</span>
+              <span className="sidebar-responsive-subtitle text-muted-foreground leading-tight">Sistema de Monitoramento</span>
             </div>
           </div>
         </SidebarHeader>
 
-        <div className="flex-1 px-4 py-4 space-y-6">
+        <div className="flex-1 px-4 py-6 space-y-8">
           {/* Main Navigation */}
           <SidebarGroup>
-            <SidebarGroupLabel className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <SidebarGroupLabel className="px-3 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
               Principal
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
+              <SidebarMenu className="space-y-2">
                 {mainMenuItems.map((item, index) => renderMenuItem(item, index))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
           
-
-          <SidebarSeparator className="mx-2" />
+          <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mx-3" />
 
           {/* Secondary Navigation */}
           <SidebarGroup>
-            <SidebarGroupLabel className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            <SidebarGroupLabel className="px-3 text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
               Sistema
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
+              <SidebarMenu className="space-y-2">
                 {secondaryMenuItems.map((item, index) => renderMenuItem(item, index))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </div>
 
-        <SidebarFooter className="p-4">
-          <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+        <SidebarFooter className="p-4 space-y-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 border-blue-200 dark:border-blue-800 shadow-lg">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2 min-w-0">
-                <HelpCircle className="h-4 w-4 text-primary flex-shrink-0" />
-                <CardTitle className="text-sm truncate">Precisa de Ajuda?</CardTitle>
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <HelpCircle className="h-4 w-4 text-white" />
+                </div>
+                <CardTitle className="text-sm truncate text-card-foreground">Precisa de Ajuda?</CardTitle>
               </div>
-              <CardDescription className="text-xs truncate">
+              <CardDescription className="text-xs truncate text-muted-foreground">
                 Acesse nossa documentação completa
               </CardDescription>
             </CardHeader>
@@ -205,7 +212,7 @@ export const AppSidebar = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="w-full text-xs border-primary/30 hover:bg-primary/10 min-w-0"
+                className="w-full text-xs border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 min-w-0 transition-all"
                 onClick={() => navigate('/docs')}
               >
                 <ExternalLink className="h-3 w-3 mr-2 flex-shrink-0" />
@@ -213,18 +220,19 @@ export const AppSidebar = () => {
               </Button>
             </CardContent>
           </Card>
+          
           {/* Botão Sair */}
           <Button
             variant="ghost"
             size="sm"
-            className="w-full mt-4 flex items-center justify-center gap-2 text-destructive hover:bg-destructive/10 min-w-0"
+            className="w-full flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-700 dark:hover:text-red-300 min-w-0 transition-all hover:scale-[1.02] active:scale-[0.98] rounded-xl"
             onClick={() => {
               logout()
               navigate('/login')
             }}
           >
             <LogOut className="h-4 w-4 flex-shrink-0" />
-            <span className="truncate">Sair</span>
+            <span className="truncate font-medium">Sair</span>
           </Button>
         </SidebarFooter>
       </SidebarContent>
