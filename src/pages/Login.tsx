@@ -37,10 +37,10 @@ export default function LoginPage() {
           <p className="text-sm text-[#6b7280] mb-6">Sistema de Monitoramento</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">E-mail :</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700">E-mail :</label>
               <input
                 type="email"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-900 bg-white"
                 placeholder="Digite seu e-mail"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
@@ -48,11 +48,11 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Senha :</label>
+              <label className="block text-sm font-medium mb-1 text-gray-700">Senha :</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200 text-gray-900 bg-white"
                   placeholder="Digite sua senha"
                   value={password}
                   onChange={e => setPassword(e.target.value)}

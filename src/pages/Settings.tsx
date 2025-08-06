@@ -23,7 +23,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { SecurityStatusCard } from '@/components/SecurityStatusCard'
 import { toast } from 'sonner'
 import {
   ShieldCheck,
@@ -39,6 +38,7 @@ import {
   Mail,
   PlusCircle,
   Trash2,
+  Copy,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Switch } from '@/components/ui/switch'
@@ -528,10 +528,55 @@ const SettingsPage = () => {
         </Form>
       </Card>
 
-      {/* Security Status Card */}
-      <div className="section-spacing">
-        <SecurityStatusCard />
-      </div>
+      {/* Client ID Helper Card */}
+      <Card>
+        <CardHeader className="card-responsive pb-4">
+          <CardTitle className="text-lg sm:text-xl flex items-center gap-2">
+            <Copy className="h-5 w-5" />
+            Client ID para Configuração
+          </CardTitle>
+          <CardDescription className="text-sm sm:text-base">
+            Use o Client ID abaixo para configurar a integração com o Google Drive.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="card-responsive">
+          <div className="space-y-4">
+            <div className="bg-muted/50 rounded-lg p-4 border">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium mb-2">Client ID:</p>
+                  <code className="text-xs sm:text-sm font-mono bg-background px-3 py-2 rounded border break-all">
+                    304556140138-lsfot8fpr7kvp3tn96th9bkju3emed1n.apps.googleusercontent.com
+                  </code>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText('304556140138-lsfot8fpr7kvp3tn96th9bkju3emed1n.apps.googleusercontent.com')
+                    toast.success('Client ID copiado para a área de transferência!')
+                  }}
+                  className="flex-shrink-0"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar
+                </Button>
+              </div>
+            </div>
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle>Como usar</AlertTitle>
+              <AlertDescription>
+                1. Clique no botão "Copiar" acima para copiar o Client ID
+                <br />
+                2. Cole no campo "Client ID" na seção de conexão com Google Drive
+                <br />
+                3. Clique em "Conectar com Google" para autenticar
+              </AlertDescription>
+            </Alert>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
