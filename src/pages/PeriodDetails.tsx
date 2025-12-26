@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAppStore } from '@/stores/app-store'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
 import {
   ArrowLeft,
   LayoutGrid,
@@ -36,6 +37,7 @@ import {
   Users,
   Droplets,
   Flame,
+  Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ReportFile } from '@/types'
@@ -51,11 +53,13 @@ const PeriodDetails = () => {
     reports,
     currentPeriod,
     fetchReportsByPeriod,
+    calculateReportsStatus,
     isConnected,
     startAuthentication,
   } = useAppStore()
 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (!isConnected) {
@@ -72,28 +76,43 @@ const PeriodDetails = () => {
     }
 
     if (periodoId) {
-      // Always force refresh to get latest calculated values
-      fetchReportsByPeriod(periodoId, true).catch(() => {
+      // Load reports list (fast, without status calculation)
+      fetchReportsByPeriod(periodoId, false).then(() => {
+        // After reports are loaded, calculate status in background
+        // This provides better UX - user sees list immediately, status updates progressively
+        calculateReportsStatus(periodoId, (current, total) => {
+          console.log(`Calculating status: ${current}/${total}`)
+        }).catch((error) => {
+          console.warn('Failed to calculate reports status:', error)
+          // Don't show error to user - list still works, just without status
+        })
+      }).catch(() => {
         // Error is handled by the component's error state display
       })
     }
-  }, [periodoId, fetchReportsByPeriod, isConnected, navigate])
+  }, [periodoId, fetchReportsByPeriod, calculateReportsStatus, isConnected, navigate])
 
   const reportList = periodoId ? reports[periodoId] || [] : []
 
-  const sortedReportList = [...reportList].sort((a, b) => {
-    const [dayA, monthA, yearA] = a.date.split('/').map(Number)
-    const dateA = new Date(yearA, monthA - 1, dayA)
+  const sortedReportList = useMemo(() => {
+    const filtered = reportList.filter((report) =>
+      report.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
 
-    const [dayB, monthB, yearB] = b.date.split('/').map(Number)
-    const dateB = new Date(yearB, monthB - 1, dayB)
+    return [...filtered].sort((a, b) => {
+      const [dayA, monthA, yearA] = a.date.split('/').map(Number)
+      const dateA = new Date(yearA, monthA - 1, dayA)
 
-    if (dateB.getTime() !== dateA.getTime()) {
-      return dateB.getTime() - dateA.getTime()
-    }
+      const [dayB, monthB, yearB] = b.date.split('/').map(Number)
+      const dateB = new Date(yearB, monthB - 1, dayB)
 
-    return a.name.localeCompare(b.name)
-  })
+      if (dateB.getTime() !== dateA.getTime()) {
+        return dateB.getTime() - dateA.getTime()
+      }
+
+      return a.name.localeCompare(b.name)
+    })
+  }, [reportList, searchQuery])
 
   const { fetchReportDetails } = useAppStore()
   const handleReportClick = async (reportId: string) => {
@@ -356,6 +375,18 @@ const PeriodDetails = () => {
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
+
+        {/* Campo de Pesquisa */}
+        <div className="relative max-w-md mt-6">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Buscar por nome do condomínio..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
       </div>
 
       {(isLoading || (!sortedReportList.length && !error)) &&
@@ -378,12 +409,12 @@ const PeriodDetails = () => {
           <CardContent className="card-responsive text-center">
             <FolderSearch className="h-16 w-16 sm:h-20 sm:w-20 text-muted-foreground mx-auto mb-6" />
             <h3 className="text-lg sm:text-xl font-semibold mb-4">
-              Nenhum Relatório Encontrado
+              {searchQuery ? 'Nenhum Resultado Encontrado' : 'Nenhum Relatório Encontrado'}
             </h3>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Não encontramos nenhum relatório para este período. Verifique se
-              as pastas de dia (ex: "01_06_2025") e os arquivos .xlsx existem
-              dentro da pasta do período.
+              {searchQuery
+                ? `Não encontramos nenhum condomínio com "${searchQuery}". Tente outra busca.`
+                : 'Não encontramos nenhum relatório para este período. Verifique se as pastas de dia (ex: "01_06_2025") e os arquivos .xlsx existem dentro da pasta do período.'}
             </p>
           </CardContent>
         </Card>

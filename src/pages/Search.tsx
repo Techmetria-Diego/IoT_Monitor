@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -18,6 +19,8 @@ import {
   Grid3X3,
   List,
   Sparkles,
+  Droplets,
+  Flame,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,7 +70,18 @@ const searchSchema = z.object({
 type SortKey = keyof SearchResultFile
 type SortDirection = 'asc' | 'desc'
 
+// Helper function to convert dd/mm/yyyy to ISO date
+const convertDateToISO = (dateStr: string): string => {
+  try {
+    const [day, month, year] = dateStr.split('/').map(Number)
+    return new Date(year, month - 1, day).toISOString()
+  } catch {
+    return new Date().toISOString()
+  }
+}
+
 const SearchPage = () => {
+  const navigate = useNavigate()
   const {
     reports,
     periods,
@@ -113,14 +127,28 @@ const SearchPage = () => {
           .map((file): SearchResultFile => ({
             id: file.id,
             name: file.name,
-            type: 'spreadsheet',
-            size: 1024,
-            modifiedTime: new Date().toISOString(),
-            owner: 'Sistema',
-            path: `/periodos/${file.periodId}/${file.name}`
+            type: file.serviceType === 'water' ? 'spreadsheet' : file.serviceType === 'gas' ? 'pdf' : 'spreadsheet',
+            size: 0, // Não disponível no ReportFile
+            modifiedTime: convertDateToISO(file.date),
+            owner: 'Google Drive',
+            path: `${file.date} - ${file.name}`,
           }))
       } else {
-        // Busca em todos os períodos
+        // Busca em TODOS os períodos disponíveis
+        toast.info('Carregando todos os períodos...', {
+          description: `Buscando em ${periods.length} período(s)`,
+        })
+        
+        // Buscar relatórios de todos os períodos em paralelo (em lotes)
+        const BATCH_SIZE = 3
+        for (let i = 0; i < periods.length; i += BATCH_SIZE) {
+          const batch = periods.slice(i, i + BATCH_SIZE)
+          await Promise.all(
+            batch.map(period => fetchReportsByPeriod(period.id, false))
+          )
+        }
+        
+        // Após carregar todos, filtrar pelos critérios
         const allReports = Object.values(reports).flat()
         filteredResults = allReports
           .filter((file) => {
@@ -129,11 +157,11 @@ const SearchPage = () => {
           .map((file): SearchResultFile => ({
             id: file.id,
             name: file.name,
-            type: 'spreadsheet',
-            size: 1024,
-            modifiedTime: new Date().toISOString(),
-            owner: 'Sistema',
-            path: `/periodos/${file.periodId}/${file.name}`
+            type: file.serviceType === 'water' ? 'spreadsheet' : file.serviceType === 'gas' ? 'pdf' : 'spreadsheet',
+            size: 0, // Não disponível no ReportFile
+            modifiedTime: convertDateToISO(file.date),
+            owner: 'Google Drive',
+            path: `${file.date} - ${file.name}`,
           }))
       }
       setResults(filteredResults)
@@ -188,11 +216,11 @@ const SearchPage = () => {
   const getFileIcon = (type: SearchResultFile['type']) => {
     switch (type) {
       case 'pdf':
-        return <FileText className="h-5 w-5 text-red-500" />
+        return <Flame className="h-5 w-5 text-orange-500" />
       case 'image':
         return <Image className="h-5 w-5 text-blue-500" />
       case 'spreadsheet':
-        return <FileText className="h-5 w-5 text-green-500" />
+        return <Droplets className="h-5 w-5 text-blue-500" />
       case 'text':
         return <FileText className="h-5 w-5 text-orange-500" />
       default:
@@ -203,9 +231,9 @@ const SearchPage = () => {
   const getFileTypeLabel = (type: SearchResultFile['type']) => {
     switch (type) {
       case 'spreadsheet':
-        return 'Planilha'
+        return 'Água'
       case 'pdf':
-        return 'PDF'
+        return 'Gás'
       case 'image':
         return 'Imagem'
       case 'text':
@@ -216,7 +244,7 @@ const SearchPage = () => {
   }
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
+    if (bytes === 0) return 'N/A'
     const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
@@ -236,7 +264,7 @@ const SearchPage = () => {
       key={file.id}
       className="cursor-pointer transition-all duration-300 hover:shadow-lg hover:scale-[1.02] animate-fade-in-up border-2 border-border/50 hover:border-primary/30"
       style={{ animationDelay: `${index * 100}ms` }}
-      onClick={() => setFileToPreview(file)}
+      onClick={() => navigate(`/relatorio/${file.id}`)}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-3">
@@ -535,7 +563,6 @@ const SearchPage = () => {
                             <ArrowUpDown className="ml-2 h-4 w-4" />
                           </Button>
                         </TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -544,7 +571,7 @@ const SearchPage = () => {
                           key={file.id}
                           className="cursor-pointer hover:bg-accent/50 animate-fade-in"
                           style={{ animationDelay: `${index * 100}ms` }}
-                          onClick={() => setFileToPreview(file)}
+                          onClick={() => navigate(`/relatorio/${file.id}`)}
                         >
                           <TableCell>
                             <div className="flex items-center justify-center">
@@ -566,19 +593,6 @@ const SearchPage = () => {
                             <Badge variant="outline" className="text-xs">
                               {formatFileSize(file.size)}
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setFileToPreview(file)
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

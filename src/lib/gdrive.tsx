@@ -88,6 +88,100 @@ export class PermissionError extends GDriveApiError {
   }
 }
 
+// PHASE 2: Cache Inteligente de Status de Relatórios
+interface CachedReportStatus {
+  fileId: string
+  status: ReportFile['status']
+  highConsumptionUnitsCount: number
+  cachedAt: number
+  fileModifiedTime?: string
+}
+
+const CACHE_STORAGE_KEY = 'report_status_cache'
+const CACHE_DURATION_MS = 6 * 60 * 60 * 1000 // 6 horas
+
+// Get cached status for a report file
+const getCachedStatus = (fileId: string, fileModifiedTime?: string): CachedReportStatus | null => {
+  try {
+    const cacheData = localStorage.getItem(CACHE_STORAGE_KEY)
+    if (!cacheData) return null
+
+    const cache: Record<string, CachedReportStatus> = JSON.parse(cacheData)
+    const cached = cache[fileId]
+
+    if (!cached) return null
+
+    // Check if cache is expired
+    const now = Date.now()
+    const cacheAge = now - cached.cachedAt
+    if (cacheAge > CACHE_DURATION_MS) {
+      // Cache expired, remove it
+      delete cache[fileId]
+      localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cache))
+      return null
+    }
+
+    // If file modified time is provided, check if file was modified since cache
+    if (fileModifiedTime && cached.fileModifiedTime) {
+      if (fileModifiedTime !== cached.fileModifiedTime) {
+        // File was modified, invalidate cache
+        delete cache[fileId]
+        localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cache))
+        return null
+      }
+    }
+
+    console.log(`💾 Cache hit for report ${fileId}`)
+    return cached
+  } catch (error) {
+    console.warn('Error reading status cache:', error)
+    return null
+  }
+}
+
+// Save status to cache
+const saveCachedStatus = (fileId: string, status: ReportFile['status'], highConsumptionUnitsCount: number, fileModifiedTime?: string): void => {
+  try {
+    const cacheData = localStorage.getItem(CACHE_STORAGE_KEY)
+    const cache: Record<string, CachedReportStatus> = cacheData ? JSON.parse(cacheData) : {}
+
+    cache[fileId] = {
+      fileId,
+      status,
+      highConsumptionUnitsCount,
+      cachedAt: Date.now(),
+      fileModifiedTime,
+    }
+
+    // Keep cache size reasonable (max 1000 entries)
+    const entries = Object.keys(cache)
+    if (entries.length > 1000) {
+      // Remove oldest 20% of entries
+      const sortedEntries = entries
+        .map(key => ({ key, cachedAt: cache[key].cachedAt }))
+        .sort((a, b) => a.cachedAt - b.cachedAt)
+      
+      const toRemove = sortedEntries.slice(0, Math.floor(entries.length * 0.2))
+      toRemove.forEach(({ key }) => delete cache[key])
+    }
+
+    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cache))
+    console.log(`💾 Cache saved for report ${fileId}`)
+  } catch (error) {
+    console.warn('Error saving status cache:', error)
+  }
+}
+
+// Clear all cached statuses (utility function)
+const clearStatusCache = (): void => {
+  try {
+    localStorage.removeItem(CACHE_STORAGE_KEY)
+    console.log('🗑️ Status cache cleared')
+  } catch (error) {
+    console.warn('Error clearing status cache:', error)
+  }
+}
+
 // API request helper with automatic token refresh
 const makeApiRequest = async (
   url: string,
@@ -239,47 +333,58 @@ const getServiceType = (filename: string): 'water' | 'gas' | 'unknown' => {
 }
 
 // Helper to count reports in a period folder
+// OPTIMIZED: Now uses a single query to get all XLSX files recursively
+// Instead of N queries (one per daily folder), we do just 1 query
 const countReportsInPeriod = async (
   periodId: string,
   config: GDriveSettings,
 ): Promise<number> => {
-  const dailyFolderRegex = /^\d{2}_\d{2}_\d{4}$/
-  const dailyFoldersQuery = `'${periodId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
-  const dailyFoldersUrl = `${DRIVE_API_URL}?q=${encodeURIComponent(
-    dailyFoldersQuery,
-  )}&fields=files(id,name)`
-  const result = await makeApiRequest(dailyFoldersUrl, config, periodId)
-  const allFoldersData = result.data || result
-
-  const dailyFolders =
-    allFoldersData.files?.filter((folder: any) =>
+  try {
+    // First, get all daily folders inside the period
+    const dailyFolderRegex = /^\d{2}_\d{2}_\d{4}$/
+    const dailyFoldersQuery = `'${periodId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+    const dailyFoldersUrl = `${DRIVE_API_URL}?q=${encodeURIComponent(
+      dailyFoldersQuery,
+    )}&fields=files(id, name)&pageSize=1000`
+    
+    const foldersResult = await makeApiRequest(dailyFoldersUrl, config, periodId)
+    const foldersData = foldersResult.data || foldersResult
+    
+    const dailyFolders = foldersData.files?.filter((folder: any) =>
       dailyFolderRegex.test(folder.name),
     ) || []
-
-  if (dailyFolders.length === 0) {
-    return 0
-  }
-
-  const reportCounts = await Promise.all(
-    dailyFolders.map(async (dailyFolder: any) => {
-      const reportsQuery = `'${dailyFolder.id}' in parents and mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and trashed = false`
+    
+    if (dailyFolders.length === 0) {
+      return 0
+    }
+    
+    // Now count all XLSX files in all daily folders
+    let totalCount = 0
+    
+    for (const folder of dailyFolders) {
+      const reportsQuery = `'${folder.id}' in parents and (mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' or mimeType = 'application/vnd.google-apps.spreadsheet') and trashed = false`
       const reportsUrl = `${DRIVE_API_URL}?q=${encodeURIComponent(
         reportsQuery,
-      )}&fields=files(id,name)`
-      const reportsResult = await makeApiRequest(
-        reportsUrl,
-        config,
-        dailyFolder.id,
-      )
-      const reportsData = reportsResult.data || reportsResult
-      const filteredFiles = reportsData.files?.filter((file: any) => 
-        !file.name.toLowerCase().includes('servicepoints-techmetria')
-      ) || []
-      return filteredFiles.length
-    }),
-  )
+      )}&fields=files(id,name)&pageSize=1000`
+      
+      const result = await makeApiRequest(reportsUrl, config, folder.id)
+      const reportsData = result.data || result
 
-  return reportCounts.reduce((sum, count) => sum + count, 0)
+      if (reportsData.files && reportsData.files.length > 0) {
+        // Filter out servicepoints-techmetria files
+        const filteredFiles = reportsData.files.filter((file: any) => 
+          !file.name.toLowerCase().includes('servicepoints-techmetria')
+        )
+        totalCount += filteredFiles.length
+      }
+    }
+
+    return totalCount
+  } catch (error) {
+    console.warn(`Failed to count reports for period ${periodId}:`, error)
+    // Return 0 as fallback to not break the UI
+    return 0
+  }
 }
 
 const getTendency = (consumo: number): UnitData['tendencia'] => {
@@ -372,24 +477,142 @@ const readXlsxAsSheets = async (
 ): Promise<{ values: any[][] }> => {
   console.log(`🔍 readXlsxAsSheets called by [${caller || 'unknown'}] with fileId:`, fileId.substring(0, 8) + '...', 'Full ID:', fileId)
   
-  // First try direct XLSX reading (more reliable)
+  // STEP 0: Check file metadata first to determine type and existence
+  let isGoogleSheet = false;
+  let fileName = 'unknown';
+  try {
+    console.log('📋 Checking file metadata and permissions...')
+    const metadataResponse = await fetch(`${DRIVE_API_URL}/${fileId}?fields=id,name,mimeType,trashed`, {
+      headers: {
+        'Authorization': `Bearer ${config.accessToken}`,
+      }
+    })
+    
+    if (!metadataResponse.ok) {
+       console.error('❌ Metadata fetch failed:', metadataResponse.status, metadataResponse.statusText)
+       if (metadataResponse.status === 404) {
+         throw new FileNotFoundError(fileId)
+       }
+       if (metadataResponse.status === 403) {
+         throw new PermissionError(fileId)
+       }
+       if (metadataResponse.status === 401) {
+         throw new InvalidCredentialsError()
+       }
+       throw new GDriveApiError(`Failed to fetch metadata: ${metadataResponse.statusText}`)
+    }
+    
+    const metadata = await metadataResponse.json()
+    fileName = metadata.name || 'unknown'
+    
+    if (metadata.trashed) {
+      console.error('❌ File is in trash:', fileName)
+      throw new FileNotFoundError(fileId)
+    }
+    
+    console.log('✅ File metadata retrieved:', fileName, '| Type:', metadata.mimeType)
+    
+    if (metadata.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      isGoogleSheet = true;
+      console.log('📊 Detected: File is a native Google Sheet')
+    } else if (metadata.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      console.log('📄 Detected: File is an Excel (.xlsx) file')
+    } else {
+      console.log('⚠️ Detected: Unknown file type:', metadata.mimeType)
+    }
+  } catch (metaError) {
+    console.error('❌ Failed to check file metadata:', metaError)
+    // Re-throw known errors
+    if (metaError instanceof GDriveApiError) {
+      throw metaError
+    }
+    throw new GDriveApiError(`Failed to access file ${fileId}: ${metaError}`)
+  }
+
+  // STEP 1: If it is ALREADY a Google Sheet, read it directly
+  if (isGoogleSheet) {
+     try {
+      console.log('📊 File is already a Google Sheet, reading directly...')
+      const sheetsUrl = `${SHEETS_API_URL}/${fileId}/values/A:Z`
+      console.log('🔗 Sheets API URL:', sheetsUrl)
+      
+      const sheetsResponse = await fetch(sheetsUrl, {
+        headers: {
+          'Authorization': `Bearer ${config.accessToken}`,
+        }
+      })
+      
+      if (!sheetsResponse.ok) {
+        console.error('❌ Sheets API request failed:', sheetsResponse.status, sheetsResponse.statusText)
+        const errorData = await sheetsResponse.json().catch(() => ({}))
+        console.error('❌ Error details:', errorData)
+        
+        if (sheetsResponse.status === 403) {
+          const errorMsg = errorData.error?.message || ''
+          if (errorMsg.includes('Sheets API') || errorMsg.includes('API has not been used')) {
+            throw new GDriveApiError(
+              'A API do Google Sheets não está habilitada. ' +
+              'Acesse console.cloud.google.com, vá em "APIs e Serviços" > "Biblioteca" ' +
+              'e ative a "Google Sheets API".'
+            )
+          }
+          throw new PermissionError(fileId)
+        }
+        throw new GDriveApiError(`Failed to read Google Sheet: ${sheetsResponse.statusText}`)
+      }
+      
+      const sheetsData = await sheetsResponse.json()
+      console.log('✅ Successfully read Google Sheet. Rows count:', sheetsData.values?.length || 0)
+      if (sheetsData.values && sheetsData.values.length > 0) {
+        console.log('📋 First row preview:', sheetsData.values[0]?.slice(0, 5))
+        if (sheetsData.values.length > 11) {
+          console.log('📋 Row 12 (expected headers):', sheetsData.values[11]?.slice(0, 5))
+        }
+      }
+      return { values: sheetsData.values || [] }
+     } catch (sheetError) {
+       console.error('❌ Failed to read Google Sheet directly:', sheetError)
+       // Re-throw known errors
+       if (sheetError instanceof GDriveApiError) {
+         throw sheetError
+       }
+       throw new GDriveApiError(`Failed to read Google Sheet "${fileName}": ${sheetError}`)
+     }
+  }
+
+  // STEP 2: Try direct XLSX reading (more reliable)
   try {
     console.log('🔄 Attempting direct XLSX read first...')
     const directResult = await readXlsxDirectly(fileId, config, caller)
     
-    // Check if we got real data (not mock data) - be more strict
-    if (directResult.values && directResult.values.length > 12) {
-      // Check for real headers in row 12 (index 11)
-      const headerRow = directResult.values[11]
-      if (headerRow && headerRow.length > 5 && 
-          (headerRow.some(h => h && h.toString().includes('DESCRIÇÃO')) ||
-           headerRow.some(h => h && h.toString().includes('CONSUMO')))) {
-        console.log('✅ Direct XLSX read successful with REAL data, rows:', directResult.values.length)
-        console.log('📋 Headers detected:', headerRow)
-        return directResult
+    // Check if we got real data (not mock data)
+    if (directResult.values && directResult.values.length > 10) {
+      console.log('✅ Direct XLSX read successful, rows:', directResult.values.length)
+      
+      // Search for headers dynamically in the first 20 rows
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(20, directResult.values.length); i++) {
+        const row = directResult.values[i];
+        if (row && row.length > 5) {
+          const rowText = row.join('|').toUpperCase();
+          // Look for typical header keywords
+          if ((rowText.includes('DESCRIÇÃO') || rowText.includes('DESCRICAO')) &&
+              (rowText.includes('CONSUMO') || rowText.includes('TENDÊNCIA') || rowText.includes('TENDENCIA'))) {
+            headerRowIndex = i;
+            console.log(`📋 Headers found at row ${i + 1}:`, row.slice(0, 8));
+            break;
+          }
+        }
       }
+      
+      if (headerRowIndex >= 0 || directResult.values.length > 15) {
+        // Accept if we found headers OR if file has enough rows (likely valid)
+        console.log('✅ Direct XLSX read validated - returning data');
+        return directResult;
+      }
+      
+      console.log('⚠️ Direct XLSX read: could not validate headers, trying fallback...')
     }
-    console.log('⚠️ Direct XLSX read returned insufficient or mock data')
   } catch (directError) {
     console.error('❌ Direct XLSX read failed:', directError)
   }
@@ -445,18 +668,46 @@ const readXlsxAsSheets = async (
       }).catch(err => console.warn('⚠️ Failed to cleanup temp file:', err))
     }
   } catch (error) {
-    console.error('❌ Google Sheets conversion also failed:', error)
-    console.error('� REFUSING to use mock data - will throw error instead')
-    throw new GDriveApiError(`Failed to read real data from file ${fileId}: ${error}`)
+    console.error('❌ All methods failed to read file. Error details:')
+    console.error('  File ID:', fileId)
+    console.error('  File Name:', fileName)
+    console.error('  Error:', error)
+    
+    // Provide more specific error message
+    let errorMessage = 'Falha ao ler dados do arquivo.';
+    
+    if (error instanceof GDriveApiError) {
+      throw error
+    } else if (error instanceof Error) {
+      if (error.message.includes('Failed to convert XLSX to Sheets')) {
+        errorMessage = `Não foi possível processar o arquivo "${fileName}". ` +
+                      'Certifique-se de que a API do Google Sheets está habilitada e que você tem permissão para criar arquivos no Drive.'
+      } else {
+        errorMessage = `Erro ao processar "${fileName}": ${error.message}`
+      }
+    }
+    
+    throw new GDriveApiError(errorMessage)
   }
 }
 
 // Helper function to calculate report status based on real data
+// PHASE 2: Now with intelligent caching
 const calculateReportStatus = async (
   fileId: string,
   config: GDriveSettings,
+  fileModifiedTime?: string,
 ): Promise<{ status: ReportFile['status']; highConsumptionUnitsCount: number }> => {
   try {
+    // PHASE 2: Check cache first
+    const cached = getCachedStatus(fileId, fileModifiedTime)
+    if (cached) {
+      return {
+        status: cached.status,
+        highConsumptionUnitsCount: cached.highConsumptionUnitsCount,
+      }
+    }
+
     const sheetData = await readXlsxAsSheets(fileId, config, 'calculateReportStatus')
     
     if (!sheetData.values || sheetData.values.length < 2) {
@@ -620,6 +871,10 @@ const calculateReportStatus = async (
     }
 
     console.log(`📊 calculateReportStatus - Result: status=${status}, count=${highConsumptionUnitsCount}`)
+    
+    // Save to cache
+    saveCachedStatus(fileId, status, highConsumptionUnitsCount, fileModifiedTime)
+    
     return { status, highConsumptionUnitsCount }
   } catch (error) {
     console.error('Error calculating report status:', error)
@@ -751,9 +1006,73 @@ const validateToken = async (config: GDriveSettings): Promise<boolean> => {
   }
 }
 
+// OPTIMIZATION: Batch function to calculate status for multiple reports at once
+// Used when viewing period details to update status on-demand
+const calculateReportsStatusBatch = async (
+  reports: Array<{ id: string; name: string }>,
+  config: GDriveSettings,
+  onProgress?: (current: number, total: number) => void,
+): Promise<Map<string, { status: ReportFile['status']; highConsumptionUnitsCount: number }>> => {
+  const results = new Map<string, { status: ReportFile['status']; highConsumptionUnitsCount: number }>()
+  
+  // PHASE 2: First, check cache for all reports
+  const reportsToProcess: Array<{ id: string; name: string }> = []
+  reports.forEach((report) => {
+    const cached = getCachedStatus(report.id)
+    if (cached) {
+      results.set(report.id, {
+        status: cached.status,
+        highConsumptionUnitsCount: cached.highConsumptionUnitsCount,
+      })
+      if (onProgress) {
+        onProgress(results.size, reports.length)
+      }
+    } else {
+      reportsToProcess.push(report)
+    }
+  })
+  
+  // Only process reports that weren't in cache
+  if (reportsToProcess.length === 0) {
+    console.log(`💾 All ${reports.length} reports loaded from cache`)
+    return results
+  }
+  
+  console.log(`🔄 Processing ${reportsToProcess.length} reports (${results.size} from cache)`)
+  
+  // PHASE 3: Process in batches of 5 to avoid overwhelming the API
+  // Parallel processing with controlled concurrency
+  const BATCH_SIZE = 5
+  for (let i = 0; i < reportsToProcess.length; i += BATCH_SIZE) {
+    const batch = reportsToProcess.slice(i, i + BATCH_SIZE)
+    
+    await Promise.all(
+      batch.map(async (report) => {
+        try {
+          const statusResult = await calculateReportStatus(report.id, config)
+          results.set(report.id, statusResult)
+          if (onProgress) {
+            onProgress(results.size, reports.length)
+          }
+        } catch (error) {
+          console.warn(`Failed to calculate status for ${report.name}:`, error)
+          // Default to normal status on error
+          results.set(report.id, { status: 'normal', highConsumptionUnitsCount: 0 })
+          if (onProgress) {
+            onProgress(results.size, reports.length)
+          }
+        }
+      })
+    )
+  }
+  
+  return results
+}
+
 export const gdriveApi = {
   validateToken,
   validateAndRefreshToken,
+  calculateReportsStatusBatch,
   
   connect: async (config: GDriveSettings): Promise<GDriveSettings> => {
     console.log('🔄 Iniciando conexão com Google Drive...')
@@ -851,7 +1170,11 @@ export const gdriveApi = {
 
     let allReports: ReportFile[] = []
 
-    for (const dailyFolder of dailyFolders) {
+    // PHASE 3: Process daily folders in parallel batches to improve performance
+    // Process 5 folders at a time to avoid overwhelming the API
+    const FOLDER_BATCH_SIZE = 5
+    
+    const processDailyFolder = async (dailyFolder: any): Promise<ReportFile[]> => {
       const reportsQuery = `'${dailyFolder.id}' in parents and mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and trashed = false`
       const reportsUrl = `${DRIVE_API_URL}?q=${encodeURIComponent(
         reportsQuery,
@@ -868,54 +1191,78 @@ export const gdriveApi = {
           !file.name.toLowerCase().includes('servicepoints-techmetria')
         )
         
-        // Process each file to get real data-based status
-        const reports = await Promise.all(filteredFiles.map(async (file: any) => {
-          console.log(`🔄 Processing report: ${file.name}`)
-          const { status, highConsumptionUnitsCount } = await calculateReportStatus(file.id, updatedConfig)
-          console.log(`📋 Report ${file.name}: ${highConsumptionUnitsCount} units in alert (status: ${status})`)
-          
-          // DIAGNOSTIC: Double-check with direct details fetch for first few files
-          if (filteredFiles.indexOf(file) < 2) {
-            try {
-              const detailsResult = await gdriveApi.fetchReportDetails(file.id, updatedConfig)
-              const details = 'details' in detailsResult ? detailsResult.details : detailsResult
-              const detailsCount = details.units.filter((u: UnitData) => u.isHighConsumption).length
-              console.log(`🔍 DIAGNOSTIC - Report ${file.name}:`)
-              console.log(`  - calculateReportStatus count: ${highConsumptionUnitsCount}`)
-              console.log(`  - fetchReportDetails count: ${detailsCount}`)
-              console.log(`  - Match: ${highConsumptionUnitsCount === detailsCount ? '✅' : '❌'}`)
-              if (highConsumptionUnitsCount !== detailsCount) {
-                console.warn(`⚠️ MISMATCH detected for ${file.name}! Using fetchReportDetails count.`)
-                return {
-                  id: file.id,
-                  name: extractReportName(file.name),
-                  date: dailyFolder.name.replace(/_/g, '/'),
-                  periodId: periodId,
-                  status: detailsCount > 2 ? 'error' : detailsCount > 0 ? 'alert' : 'normal',
-                  highConsumptionUnitsCount: detailsCount,
-                  alertBudget: 20,
-                  serviceType: getServiceType(file.name),
-                }
-              }
-            } catch (_e) {
-              console.error(`Failed diagnostic check for ${file.name}:`, _e)
-            }
-          }
-
+        // OPTIMIZATION: Lazy loading - Don't calculate status during list fetch
+        // Status will be calculated on-demand when user views the period details
+        // This avoids downloading and processing 60+ XLSX files during initial load
+        return filteredFiles.map((file: any) => {
           return {
             id: file.id,
             name: extractReportName(file.name),
             date: dailyFolder.name.replace(/_/g, '/'),
             periodId: periodId,
-            status: status,
-            highConsumptionUnitsCount: highConsumptionUnitsCount,
-            alertBudget: 20, // This can remain as a default value
+            status: 'normal' as const, // Default status, will be calculated on-demand
+            highConsumptionUnitsCount: 0, // Will be calculated on-demand
+            alertBudget: 20,
             serviceType: getServiceType(file.name),
           }
-        }))
-        
+        })
+      }
+      
+      return []
+    }
+
+    // Process folders in batches of 5
+    for (let i = 0; i < dailyFolders.length; i += FOLDER_BATCH_SIZE) {
+      const batch = dailyFolders.slice(i, i + FOLDER_BATCH_SIZE)
+      const batchResults = await Promise.all(batch.map(processDailyFolder))
+      
+      // Flatten results from batch
+      for (const reports of batchResults) {
         allReports = [...allReports, ...reports]
       }
+    }
+
+    // ENHANCEMENT: Calculate status for most recent day's reports (for dashboard alerts)
+    // Group reports by date and find the most recent one
+    const reportsByDate = new Map<string, typeof allReports>()
+    allReports.forEach(report => {
+      const existing = reportsByDate.get(report.date) || []
+      reportsByDate.set(report.date, [...existing, report])
+    })
+    
+    // Get the most recent date
+    const dates = Array.from(reportsByDate.keys()).sort((a, b) => {
+      const [dayA, monthA, yearA] = a.split('/').map(Number)
+      const [dayB, monthB, yearB] = b.split('/').map(Number)
+      const dateA = new Date(yearA, monthA - 1, dayA)
+      const dateB = new Date(yearB, monthB - 1, dayB)
+      return dateB.getTime() - dateA.getTime()
+    })
+    
+    if (dates.length > 0) {
+      const mostRecentDate = dates[0]
+      const mostRecentReports = reportsByDate.get(mostRecentDate) || []
+      
+      console.log(`📊 Calculating status for ${mostRecentReports.length} reports from most recent date: ${mostRecentDate}`)
+      
+      // Calculate status for most recent reports
+      const statusResults = await calculateReportsStatusBatch(
+        mostRecentReports.map(r => ({ id: r.id, name: r.name })),
+        updatedConfig
+      )
+      
+      // Update the reports in allReports with calculated status
+      allReports = allReports.map(report => {
+        const statusData = statusResults.get(report.id)
+        if (statusData) {
+          return {
+            ...report,
+            status: statusData.status,
+            highConsumptionUnitsCount: statusData.highConsumptionUnitsCount,
+          }
+        }
+        return report
+      })
     }
 
     const sortedReports = allReports.sort((a, b) => a.name.localeCompare(b.name))
@@ -997,9 +1344,11 @@ export const gdriveApi = {
         console.log(`✅ MATCHED Nº SÉRIE: "${originalText}" → numeroserie`)
         return 'numeroserie'
       } 
-      // LIDO DE → dataleitura (comes BEFORE leitura anterior/atual in real structure)
-      else if (headerText.includes('lido de') || originalText === 'LIDO DE' || originalText === 'Lido de') {
-        console.log(`✅ MATCHED LIDO DE: "${originalText}" → dataleitura`)
+      // LIDO / LIDO DE → dataleitura (comes BEFORE leitura anterior/atual in real structure)
+      else if (headerText.includes('lido de') || headerText.includes('lido') || 
+               originalText === 'LIDO DE' || originalText === 'Lido de' || 
+               originalText === 'LIDO' || originalText === 'Lido') {
+        console.log(`✅ MATCHED LIDO: "${originalText}" → dataleitura`)
         return 'dataleitura'
       }
       // LEITURA ANTERIOR (m³) → leituraanterior

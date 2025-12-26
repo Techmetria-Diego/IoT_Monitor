@@ -25,6 +25,7 @@ type AppActions = {
   connectToDrive: (config: GDriveSettings) => Promise<void>
   disconnect: () => void
   fetchReportsByPeriod: (periodId: string, forceRefresh?: boolean) => Promise<void>
+  calculateReportsStatus: (periodId: string, onProgress?: (current: number, total: number) => void) => Promise<void>
   fetchReportDetails: (reportId: string) => Promise<void>
   setCurrentPeriodById: (periodId: string) => void
   clearCurrentReport: () => void
@@ -271,14 +272,15 @@ export const useAppStore = create<AppState & AppActions>()(
         const state = get()
         const cachedReports = state.reports[periodId]
         
+        // PHASE 2: Cache melhorado - aumentar duração de 30 minutos para 1 hora
         // Cache inteligente: verificar se há dados em cache e se ainda são válidos
         if (!forceRefresh && cachedReports && cachedReports.length > 0) {
-          // Verificar se o cache ainda é válido (30 minutos)
+          // Verificar se o cache ainda é válido (1 hora - PHASE 2 improvement)
           const cacheKey = `reports_cache_${periodId}`
           const cacheTimestamp = localStorage.getItem(cacheKey)
-          const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000)
+          const oneHourAgo = Date.now() - (60 * 60 * 1000) // 1 hora
           
-          if (cacheTimestamp && parseInt(cacheTimestamp) > thirtyMinutesAgo) {
+          if (cacheTimestamp && parseInt(cacheTimestamp) > oneHourAgo) {
             console.log('📋 Usando dados em cache válidos para período:', periodId)
             get().setCurrentPeriodById(periodId)
             return
@@ -306,6 +308,56 @@ export const useAppStore = create<AppState & AppActions>()(
           const errorState = handleError(error)
           set({ error: errorState, isLoading: false })
           throw error
+        }
+      },
+
+      calculateReportsStatus: async (periodId, onProgress) => {
+        const state = get()
+        const reports = state.reports[periodId]
+        
+        if (!reports || reports.length === 0) {
+          console.log('No reports to calculate status for period:', periodId)
+          return
+        }
+        
+        // Check if status already calculated (not default values)
+        const needsCalculation = reports.some(r => r.highConsumptionUnitsCount === 0 && r.status === 'normal')
+        if (!needsCalculation) {
+          console.log('Status already calculated for period:', periodId)
+          return
+        }
+        
+        set({ isLoading: true, error: null })
+        
+        try {
+          const reportsToProcess = reports.map(r => ({ id: r.id, name: r.name }))
+          const statusResults = await gdriveApi.calculateReportsStatusBatch(
+            reportsToProcess,
+            state.credentials,
+            onProgress
+          )
+          
+          // Update reports with calculated status
+          const updatedReports = reports.map(report => {
+            const statusData = statusResults.get(report.id)
+            if (statusData) {
+              return {
+                ...report,
+                status: statusData.status,
+                highConsumptionUnitsCount: statusData.highConsumptionUnitsCount,
+              }
+            }
+            return report
+          })
+          
+          set((state) => ({
+            reports: { ...state.reports, [periodId]: updatedReports },
+            isLoading: false,
+          }))
+        } catch (error) {
+          const errorState = handleError(error)
+          set({ error: errorState, isLoading: false })
+          console.error('Error calculating reports status:', error)
         }
       },
 

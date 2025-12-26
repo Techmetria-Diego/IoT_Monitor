@@ -33,7 +33,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { UnitData } from '@/types'
 import { Badge } from '@/components/ui/badge'
 import { useIsMobile } from '@/hooks/use-mobile'
 import {
@@ -45,7 +44,7 @@ import {
 import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import autoTable from 'jspdf-autotable';
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
@@ -105,55 +104,6 @@ const ReportDetails = () => {
       }
     }
   }, [currentReport, settings])
-
-  // Função auxiliar para preparar elementos para captura
-  const prepareElementsForCapture = async () => {
-    // Aguardar que todos os gráficos Chart.js sejam renderizados
-    const charts = document.querySelectorAll('canvas')
-    const chartPromises = Array.from(charts).map(chart => {
-      return new Promise<void>((resolve) => {
-        // Verificar se o canvas tem conteúdo renderizado
-        if (chart instanceof HTMLCanvasElement) {
-          const ctx = chart.getContext('2d')
-          if (ctx) {
-            // Aguardar um pouco mais para garantir renderização
-            setTimeout(() => resolve(), 800)
-          } else {
-            resolve()
-          }
-        } else {
-          resolve()
-        }
-      })
-    })
-    
-    await Promise.all(chartPromises)
-    
-    // Aguardar que todas as imagens sejam carregadas
-    const images = document.querySelectorAll('img')
-    const imagePromises = Array.from(images).map(img => {
-      return new Promise<void>((resolve) => {
-        if (img.complete) {
-          resolve()
-        } else {
-          img.addEventListener('load', () => resolve())
-          img.addEventListener('error', () => resolve())
-          // Fallback timeout
-          setTimeout(() => resolve(), 1500)
-        }
-      })
-    })
-    
-    await Promise.all(imagePromises)
-    
-    // Aguardar que as fontes sejam carregadas
-    if (document.fonts && document.fonts.ready) {
-      await document.fonts.ready
-    }
-    
-    // Delay adicional para garantir renderização completa
-    await new Promise(resolve => setTimeout(resolve, 1000))
-  }
 
   const downloadExcel = async () => {
     if (!reportId || !credentials.accessToken) {
@@ -225,315 +175,235 @@ const ReportDetails = () => {
       return
     }
 
+    const toastId = toast.loading('Gerando PDF...', {
+      description: 'Criando documento com os dados do relatório',
+    })
+
     try {
-      toast.loading('Preparando captura do PDF...', {
-        description: 'Aguardando renderização completa dos elementos'
-      })
+      // Criar PDF em formato paisagem para caber todas as colunas da tabela
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 15
+      let yPosition = margin
 
-      // Aguardar todos os elementos estarem carregados
-      await prepareElementsForCapture()
+      // Cores
+      const primaryColor: [number, number, number] = [59, 130, 246] // blue-500
+      const dangerColor: [number, number, number] = [239, 68, 68] // red-500
+      const successColor: [number, number, number] = [34, 197, 94] // green-500
+      const textColor: [number, number, number] = [31, 41, 55] // gray-800
+      const mutedColor: [number, number, number] = [107, 114, 128] // gray-500
 
-      // Encontrar o container principal da página
-      const reportElement = document.querySelector('.page-container') as HTMLElement
-      if (!reportElement) {
-        throw new Error('Container da página não encontrado')
-      }
-
-      // Salvar estado original
-      const originalScrollY = window.scrollY
-      const originalOverflow = document.body.style.overflow
+      // Título do relatório (remover prefixos como "Dash", "Dash -", etc.)
+      const cleanedName = currentReport.name
+        .replace(/^(Dash\s*-?\s*|Dashboard\s*-?\s*)/i, '')
+        .trim()
       
-      // Preparar página para captura
-      window.scrollTo(0, 0)
-      document.body.style.overflow = 'visible'
-      
-      // Garantir que o elemento esteja completamente visível
-      reportElement.style.position = 'static'
-      reportElement.style.width = 'auto'
-      reportElement.style.height = 'auto'
-      reportElement.style.transform = 'none'
-      reportElement.style.maxWidth = 'none'
-      reportElement.style.overflow = 'visible'
-      
-      // Forçar re-layout
-      void reportElement.offsetHeight
-      
-      // Aguardar estabilização
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      pdf.setFontSize(20)
+      pdf.setTextColor(...primaryColor)
+      pdf.text(`Relatório: ${cleanedName}`, margin, yPosition)
+      yPosition += 12
 
-      toast.loading('Capturando página...', {
-        description: 'Gerando imagem em alta resolução'
-      })
+      // Data de geração
+      pdf.setFontSize(10)
+      pdf.setTextColor(...mutedColor)
+      pdf.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, margin, yPosition)
+      yPosition += 10
 
-      // Configurações otimizadas para captura completa da largura
-      const canvasOptions = {
-        allowTaint: true,
-        useCORS: true,
-        scale: 2, // Escala alta para qualidade
-        backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: 0,
-        width: reportElement.scrollWidth, // Capturar largura completa
-        height: reportElement.scrollHeight, // Capturar altura completa
-        logging: false,
-        imageTimeout: 30000,
-        removeContainer: false,
-        foreignObjectRendering: true,
-        ignoreElements: (element: Element) => {
-          // Ignorar apenas elementos que realmente atrapalham
-          const ignoredClasses = [
-            'dropdown-menu', 'toast', 'tooltip', 'sonner-toast',
-            'sonner-toaster', 'fixed', 'absolute'
-          ]
-          return ignoredClasses.some(cls => element.classList.contains(cls)) ||
-                 element.tagName === 'SCRIPT' ||
-                 element.tagName === 'STYLE' ||
-                 (element as HTMLElement).style.position === 'fixed'
+      // Linha divisória
+      pdf.setDrawColor(...primaryColor)
+      pdf.setLineWidth(0.5)
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition)
+      yPosition += 10
+
+      // Resumo estatístico
+      const totalUnidades = currentReport.units.length
+      const unidadesAlerta = currentReport.units.filter(u => u.isHighConsumption).length
+      const consumoTotal = currentReport.units.reduce((acc, u) => acc + u.consumo, 0)
+      const consumoMedio = totalUnidades > 0 ? consumoTotal / totalUnidades : 0
+
+      pdf.setFontSize(12)
+      pdf.setTextColor(...textColor)
+      
+      // Cards de resumo em linha
+      const cardWidth = (pageWidth - margin * 2 - 30) / 4
+      const cardHeight = 20
+      const cardY = yPosition
+
+      // Card 1: Total de Unidades
+      pdf.setFillColor(240, 249, 255) // blue-50
+      pdf.roundedRect(margin, cardY, cardWidth, cardHeight, 2, 2, 'F')
+      pdf.setFontSize(10)
+      pdf.setTextColor(...mutedColor)
+      pdf.text('Total de Unidades', margin + 5, cardY + 7)
+      pdf.setFontSize(16)
+      pdf.setTextColor(...primaryColor)
+      pdf.text(String(totalUnidades), margin + 5, cardY + 15)
+
+      // Card 2: Unidades em Alerta
+      const card2X = margin + cardWidth + 10
+      pdf.setFillColor(254, 242, 242) // red-50
+      pdf.roundedRect(card2X, cardY, cardWidth, cardHeight, 2, 2, 'F')
+      pdf.setFontSize(10)
+      pdf.setTextColor(...mutedColor)
+      pdf.text('Unidades em Alerta', card2X + 5, cardY + 7)
+      pdf.setFontSize(16)
+      pdf.setTextColor(...dangerColor)
+      pdf.text(String(unidadesAlerta), card2X + 5, cardY + 15)
+
+      // Card 3: Consumo Total
+      const card3X = margin + (cardWidth + 10) * 2
+      pdf.setFillColor(240, 253, 244) // green-50
+      pdf.roundedRect(card3X, cardY, cardWidth, cardHeight, 2, 2, 'F')
+      pdf.setFontSize(10)
+      pdf.setTextColor(...mutedColor)
+      pdf.text('Consumo Total', card3X + 5, cardY + 7)
+      pdf.setFontSize(16)
+      pdf.setTextColor(...successColor)
+      pdf.text(`${consumoTotal.toFixed(2)} m³`, card3X + 5, cardY + 15)
+
+      // Card 4: Consumo Médio
+      const card4X = margin + (cardWidth + 10) * 3
+      pdf.setFillColor(249, 250, 251) // gray-50
+      pdf.roundedRect(card4X, cardY, cardWidth, cardHeight, 2, 2, 'F')
+      pdf.setFontSize(10)
+      pdf.setTextColor(...mutedColor)
+      pdf.text('Consumo Médio', card4X + 5, cardY + 7)
+      pdf.setFontSize(16)
+      pdf.setTextColor(20, 30, 40)
+      pdf.text(`${consumoMedio.toFixed(2)} m³`, card4X + 5, cardY + 15)
+
+      yPosition = cardY + cardHeight + 15
+
+      // Título da tabela
+      pdf.setFontSize(14)
+      pdf.setTextColor(...textColor)
+      pdf.text('Detalhamento por Unidade', margin, yPosition)
+      yPosition += 8
+
+      // Preparar dados da tabela
+      const tableHeaders = [
+        'Unidade',
+        'Nº Série',
+        'Dispositivo',
+        'Última Leitura',
+        'Leit. Anterior',
+        'Leit. Atual',
+        'Consumo (m³)',
+        'Projeção 30d',
+        'Tendência'
+      ]
+
+      const tableData = currentReport.units.map(unit => [
+        getUnitNumber(unit.unidade),
+        unit.numeroDeSerie || 'N/A',
+        unit.dispositivo || 'N/A',
+        formatDateBrazilian(unit.dataLeitura || ''),
+        unit.leituraAnterior.toFixed(2),
+        unit.leituraAtual.toFixed(2),
+        unit.consumo.toFixed(2),
+        unit.projecao30Dias.toFixed(2),
+        unit.tendencia
+      ])
+
+      // Calcular largura disponível da tabela (mesma dos cards)
+      const tableWidth = pageWidth - (margin * 2)
+
+      // Gerar tabela com autoTable
+      autoTable(pdf, {
+        startY: yPosition,
+        head: [tableHeaders],
+        body: tableData,
+        margin: { left: margin, right: margin },
+        tableWidth: tableWidth,
+        styles: {
+          fontSize: 8.5,
+          cellPadding: { top: 2.5, right: 1.5, bottom: 2.5, left: 1.5 },
+          overflow: 'ellipsize',
+          halign: 'center',
+          valign: 'middle',
+          textColor: [20, 20, 20],
         },
-        onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
-          try {
-            // Aguardar fontes carregarem no documento clonado
-            if (clonedDoc.fonts) {
-              clonedDoc.fonts.ready.then(() => {
-                console.log('Fontes carregadas no documento clonado')
-              })
+        headStyles: {
+          fillColor: [45, 110, 210],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          halign: 'center',
+          fontSize: 9,
+        },
+        alternateRowStyles: {
+          fillColor: [245, 247, 250],
+        },
+        columnStyles: {
+          0: { cellWidth: 26 }, // Unidade
+          1: { cellWidth: 28 }, // Nº Série
+          2: { cellWidth: 34 }, // Dispositivo
+          3: { cellWidth: 42 }, // Última Leitura (data e hora)
+          4: { cellWidth: 28 }, // Leit. Anterior
+          5: { cellWidth: 28 }, // Leit. Atual
+          6: { cellWidth: 28 }, // Consumo
+          7: { cellWidth: 30 }, // Projeção 30d
+          8: { cellWidth: 'auto' }, // Tendência (preenche o resto)
+        },
+        didParseCell: (data) => {
+          // Destacar linhas com alto consumo
+          if (data.section === 'body') {
+            const rowIndex = data.row.index
+            const unit = currentReport.units[rowIndex]
+            if (unit && unit.isHighConsumption) {
+              data.cell.styles.fillColor = [254, 226, 226] // red-100
+              data.cell.styles.textColor = dangerColor
             }
-
-            // Forçar renderização correta dos gráficos Chart.js
-            const originalCharts = reportElement.querySelectorAll('canvas')
-            const clonedCharts = clonedElement.querySelectorAll('canvas')
-            
-            clonedCharts.forEach((clonedCanvas, index) => {
-              const originalCanvas = originalCharts[index]
-              if (originalCanvas && originalCanvas instanceof HTMLCanvasElement) {
-                const clonedCtx = clonedCanvas.getContext('2d')
-                if (clonedCtx) {
-                  // Definir dimensões exatas
-                  clonedCanvas.width = originalCanvas.width
-                  clonedCanvas.height = originalCanvas.height
-                  clonedCanvas.style.width = originalCanvas.style.width
-                  clonedCanvas.style.height = originalCanvas.style.height
-                  
-                  // Copiar pixel por pixel
-                  clonedCtx.drawImage(originalCanvas, 0, 0)
-                  
-                  // Garantir visibilidade
-                  clonedCanvas.style.display = 'block'
-                  clonedCanvas.style.visibility = 'visible'
-                  clonedCanvas.style.opacity = '1'
-                }
-              }
-            })
-
-            // Copiar estilos computados para todos os elementos
-            const originalElements = reportElement.querySelectorAll('*')
-            const clonedElements = clonedElement.querySelectorAll('*')
-            
-            clonedElements.forEach((clonedEl, index) => {
-              const originalEl = originalElements[index]
-              if (originalEl && originalEl instanceof HTMLElement && clonedEl instanceof HTMLElement) {
-                const computedStyle = window.getComputedStyle(originalEl)
-                
-                // Lista de propriedades críticas para copiar
-                const criticalProperties = [
-                  'fontFamily', 'fontSize', 'fontWeight', 'color', 'backgroundColor',
-                  'borderColor', 'borderWidth', 'borderStyle', 'borderRadius',
-                  'padding', 'margin', 'width', 'height', 'display', 'position',
-                  'textAlign', 'lineHeight', 'letterSpacing', 'wordSpacing',
-                  'background', 'backgroundImage', 'backgroundSize', 'backgroundPosition',
-                  'boxShadow', 'textShadow', 'opacity', 'transform'
-                ]
-                
-                criticalProperties.forEach(prop => {
-                  try {
-                    const value = computedStyle.getPropertyValue(prop)
-                    if (value) {
-                      clonedEl.style.setProperty(prop, value, 'important')
-                    }
-                  } catch (_e) {
-                    // Ignorar propriedades que falham
-                  }
-                })
-
-                // Preservar classes CSS importantes
-                if (originalEl.className) {
-                  clonedEl.className = originalEl.className
-                }
-              }
-            })
-
-            // Remover elementos que podem causar problemas na renderização
-            const problematicSelectors = [
-              '.sonner-toaster', '.toast', '[role="dialog"]', 
-              '[data-radix-portal]', '.dropdown-menu', '[data-state="open"]',
-              '.fixed', '[style*="position: fixed"]'
-            ]
-            
-            problematicSelectors.forEach(selector => {
-              clonedElement.querySelectorAll(selector).forEach(el => {
-                el.remove()
-              })
-            })
-
-            // Garantir que o layout seja preservado
-            clonedElement.style.width = reportElement.scrollWidth + 'px'
-            clonedElement.style.minHeight = reportElement.scrollHeight + 'px'
-            clonedElement.style.display = 'block'
-            clonedElement.style.position = 'static'
-
-          } catch (error) {
-            console.warn('Erro no processamento do clone:', error)
           }
-        }
-      }
-
-      // Capturar o canvas
-      const canvas = await html2canvas(reportElement, canvasOptions)
-      
-      // Restaurar estado original
-      window.scrollTo(0, originalScrollY)
-      document.body.style.overflow = originalOverflow
-
-      toast.loading('Gerando PDF...', {
-        description: 'Convertendo para documento PDF'
+          // Colorir coluna de tendência
+          if (data.section === 'body' && data.column.index === 8) {
+            const tendencia = String(data.cell.raw).toLowerCase()
+            if (tendencia.includes('alto consumo') || tendencia.includes('aumento')) {
+              data.cell.styles.textColor = dangerColor
+              data.cell.styles.fontStyle = 'bold'
+            } else if (tendencia.includes('estável') || tendencia.includes('normal')) {
+              data.cell.styles.textColor = successColor
+            }
+          }
+        },
       })
 
-      // Obter dados da imagem em máxima qualidade
-      const imgData = canvas.toDataURL('image/png', 1.0)
-      
-      // Calcular dimensões para uma página A4 real (sem tentar forçar tudo em uma página)
-      const canvasWidth = canvas.width
-      const canvasHeight = canvas.height
-      
-      // Dimensões do PDF em mm (A4)
-      const pdfWidth = 210 // A4 width
-      const pdfHeight = 297 // A4 height
-      const margin = 15 // Margem de 15mm para melhor legibilidade
-      const usableWidth = pdfWidth - (margin * 2)
-      const usableHeight = pdfHeight - (margin * 2)
-      
-      // Calcular escala baseada na largura disponível (considerando que a escala do canvas é 2)
-      // Como usamos scale: 2 no html2canvas, precisamos dividir as dimensões por 2
-      const actualCanvasWidth = canvasWidth / 2
-      const actualCanvasHeight = canvasHeight / 2
-      
-      // Converter pixels para mm (96 DPI padrão: 1 inch = 25.4mm, 96 pixels = 25.4mm)
-      const pixelsToMm = 25.4 / 96
-      
-      // Dimensões do conteúdo em mm
-      const contentWidthMm = actualCanvasWidth * pixelsToMm
-      const contentHeightMm = actualCanvasHeight * pixelsToMm
-      
-      // Calcular escala para caber na largura da página
-      const scaleToFit = Math.min(usableWidth / contentWidthMm, 1) // Não aumentar, apenas reduzir se necessário
-      
-      // Dimensões finais da imagem no PDF (em mm)
-      const finalWidth = contentWidthMm * scaleToFit
-      const finalHeight = contentHeightMm * scaleToFit
-      
-      console.log('PDF Layout:', {
-        canvasSize: { width: canvasWidth, height: canvasHeight },
-        actualSize: { width: actualCanvasWidth, height: actualCanvasHeight },
-        contentSize: { width: contentWidthMm, height: contentHeightMm },
-        pdfSize: { width: pdfWidth, height: pdfHeight },
-        usableArea: { width: usableWidth, height: usableHeight },
-        scaleToFit,
-        finalSize: { width: finalWidth, height: finalHeight },
-        willNeedMultiplePages: finalHeight > usableHeight
-      })
-      
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      })
-
-      // Verificar se precisa de múltiplas páginas
-      if (finalHeight > usableHeight) {
-        // Conteúdo muito alto - dividir em múltiplas páginas
-        const pagesNeeded = Math.ceil(finalHeight / usableHeight)
-        
-        for (let page = 0; page < pagesNeeded; page++) {
-          if (page > 0) {
-            pdf.addPage('a4', 'portrait')
-          }
-          
-          // Calcular qual parte do canvas capturar para esta página
-          const pageStartMm = page * usableHeight
-          const pageHeightMm = Math.min(usableHeight, finalHeight - pageStartMm)
-          
-          // Converter de volta para pixels do canvas original
-          const pageStartPixels = (pageStartMm / scaleToFit / pixelsToMm) * 2 // Multiplicar por 2 devido ao scale
-          const pageHeightPixels = (pageHeightMm / scaleToFit / pixelsToMm) * 2
-          
-          // Criar canvas temporário para essa seção
-          const tempCanvas = document.createElement('canvas')
-          const tempCtx = tempCanvas.getContext('2d')
-          
-          if (tempCtx) {
-            tempCanvas.width = canvasWidth
-            tempCanvas.height = Math.min(pageHeightPixels, canvasHeight - pageStartPixels)
-            
-            // Copiar seção do canvas original
-            tempCtx.fillStyle = '#ffffff'
-            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
-            tempCtx.drawImage(
-              canvas, 
-              0, pageStartPixels, canvasWidth, tempCanvas.height, // Fonte
-              0, 0, canvasWidth, tempCanvas.height // Destino
-            )
-            
-            const sectionData = tempCanvas.toDataURL('image/png', 1.0)
-            
-            // Adicionar a seção no PDF
-            pdf.addImage(
-              sectionData,
-              'PNG',
-              margin, // X sempre na margem
-              margin, // Y sempre na margem para cada página
-              finalWidth,
-              pageHeightMm,
-              `page-${page}`,
-              'MEDIUM'
-            )
-          }
-        }
-      } else {
-        // Conteúdo cabe em uma página - centralizar verticalmente
-        const yOffset = margin + (usableHeight - finalHeight) / 2
-        
-        pdf.addImage(
-          imgData,
-          'PNG',
+      // Rodapé em todas as páginas
+      const pageCount = pdf.getNumberOfPages()
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i)
+        const pageHeight = pdf.internal.pageSize.getHeight()
+        pdf.setFontSize(8)
+        pdf.setTextColor(...mutedColor)
+        pdf.text(
+          `Página ${i} de ${pageCount} | IOT Monitor - Sistema de Monitoramento de Consumo`,
           margin,
-          yOffset,
-          finalWidth,
-          finalHeight,
-          'main-page',
-          'MEDIUM'
+          pageHeight - 10
+        )
+        pdf.text(
+          `© ${new Date().getFullYear()} Techmetria`,
+          pageWidth - margin - 40,
+          pageHeight - 10
         )
       }
 
-      // Gerar nome do arquivo
+      // Salvar PDF
       const sanitizedName = currentReport.name
-        .replace(/^Dash\s*-?\s*/i, '')
+        .replace(/^(Dash\s*-?\s*|Dashboard\s*-?\s*)/i, '')
         .replace(/[^a-zA-Z0-9\s\-_]/g, '')
         .trim()
       const timestamp = new Date().toISOString().slice(0, 10)
       const fileName = `${sanitizedName}_Relatorio_${timestamp}.pdf`
 
-      // Salvar o PDF
       pdf.save(fileName)
-      
-      toast.dismiss()
-      toast.success('PDF gerado com sucesso!', {
-        description: 'Arquivo salvo com fidelidade pixel-perfect'
-      })
 
+      toast.dismiss(toastId)
+      toast.success('PDF gerado com sucesso!', {
+        description: `Arquivo "${fileName}" salvo`,
+      })
     } catch (error) {
-      toast.dismiss()
+      toast.dismiss(toastId)
       toast.error('Erro ao gerar PDF', {
-        description: 'Verifique se todos os elementos estão carregados e tente novamente'
+        description: 'Tente novamente',
       })
       console.error('Erro na geração do PDF:', error)
     }
@@ -729,7 +599,7 @@ const ReportDetails = () => {
         date = new Date(isoString)
         
         // Salva informação se tinha horário original
-        date._hasOriginalTime = hasOriginalTime
+        ;(date as any)._hasOriginalTime = hasOriginalTime
       }
       // Outros formatos, tenta parsear diretamente
       else {
@@ -763,13 +633,13 @@ const ReportDetails = () => {
       const seconds = date.getSeconds().toString().padStart(2, '0')
       
       // Se tinha horário original ou se o horário não é 00:00:00, mostra com horário
-      if (date._hasOriginalTime || !(hours === '00' && minutes === '00' && seconds === '00')) {
+      if ((date as any)._hasOriginalTime || !(hours === '00' && minutes === '00' && seconds === '00')) {
         return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`
       }
       
       // Se não tinha horário original e é 00:00:00, só mostra a data
       return `${day}/${month}/${year}`
-    } catch (error) {
+    } catch (_error) {
       // Como último recurso, tenta extrair manualmente do formato ISO
       if (trimmedDate.match(/^\d{4}-\d{2}-\d{2}/)) {
         const parts = trimmedDate.split(/[-T\s]/);
@@ -980,8 +850,17 @@ const ReportDetails = () => {
               <span className="text-3xl font-bold text-emerald-800 dark:text-emerald-300">{currentReport?.averageConsumption.toFixed(2)}</span>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">m³ por unidade</span>
             </div>
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 ml-4">
-              <Droplets className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+            <div className={cn(
+              "flex items-center justify-center w-14 h-14 rounded-full ml-4",
+              getCurrentReportServiceType() === 'gas' 
+                ? 'bg-orange-100 dark:bg-orange-900/30'
+                : 'bg-blue-100 dark:bg-blue-900/30'
+            )}>
+              {getCurrentReportServiceType() === 'gas' ? (
+                <Flame className="h-7 w-7 text-orange-600 dark:text-orange-400" />
+              ) : (
+                <Droplets className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+              )}
             </div>
           </Card>
         </div>
