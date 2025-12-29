@@ -65,8 +65,18 @@ const AuthCallbackPage = () => {
         
         // ✅ IMPORTANTE: Integrar os dois sistemas de autenticação
         // Após a autenticação com Google ser bem-sucedida, marcar o usuário como logado no sistema simples
+        // NOTA: O connectToDrive já chama triggerSimpleAuthLogin, mas vamos garantir
         console.log('🔐 [CALLBACK] Fazendo login no sistema simples...')
         login()
+        
+        // Verificar se realmente conectou
+        const isActuallyConnected = localStorage.getItem('isLoggedIn') === 'true'
+        console.log('🔍 [CALLBACK] Verificação final - isLoggedIn:', isActuallyConnected)
+        
+        if (!isActuallyConnected) {
+          console.error('❌ [CALLBACK] ERRO: Autenticação concluída mas isLoggedIn não foi definido!')
+          throw new Error('Falha ao salvar estado de autenticação')
+        }
         
         // Limpar dados OAuth após sucesso
         localStorage.removeItem('oauth_return_path')
