@@ -1535,7 +1535,7 @@ export const gdriveApi = {
       )
     }
     
-    const redirectUri = window.location.origin
+    const redirectUri = `${window.location.origin}/auth/callback`
     const scope = 'https://www.googleapis.com/auth/drive.readonly'
     
     // Gerar estado único e seguro

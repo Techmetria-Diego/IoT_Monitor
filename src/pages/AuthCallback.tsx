@@ -34,8 +34,12 @@ const AuthCallbackPage = () => {
         const authParams = window.location.search || window.location.hash
         console.log('🔐 [CALLBACK] Parâmetros de auth:', authParams)
         
-        if (!authParams) {
-          throw new Error('Nenhum parâmetro de autenticação encontrado na URL')
+        if (!authParams || authParams.length < 10) {
+          console.error('❌ [CALLBACK] URL não contém parâmetros OAuth válidos')
+          console.error('❌ [CALLBACK] window.location.href:', window.location.href)
+          console.error('❌ [CALLBACK] window.location.search:', window.location.search)
+          console.error('❌ [CALLBACK] window.location.hash:', window.location.hash)
+          throw new Error('Nenhum parâmetro de autenticação encontrado na URL. Verifique se a URI de redirecionamento está configurada corretamente no Google Cloud Console.')
         }
         
         // Parse dos parâmetros para debug
@@ -80,6 +84,9 @@ const AuthCallbackPage = () => {
         console.error('❌ [CALLBACK] ERRO no processamento de autenticação:', error)
         console.error('❌ [CALLBACK] Stack trace:', error instanceof Error ? error.stack : 'N/A')
         console.error('❌ [CALLBACK] Error type:', error instanceof Error ? error.constructor.name : typeof error)
+        console.error('❌ [CALLBACK] URL atual:', window.location.href)
+        console.error('❌ [CALLBACK] Hash:', window.location.hash)
+        console.error('❌ [CALLBACK] Search:', window.location.search)
         
         const errorMessage =
           error instanceof Error ? error.message : 'Falha na autenticação.'
@@ -87,6 +94,7 @@ const AuthCallbackPage = () => {
         console.log('🚨 [CALLBACK] Mostrando toast de erro:', errorMessage)
         toast.error('Erro na Autenticação', {
           description: errorMessage,
+          duration: 10000, // Mostrar por 10 segundos
         })
         
         // Limpar dados OAuth em caso de erro
@@ -94,7 +102,10 @@ const AuthCallbackPage = () => {
         localStorage.removeItem('oauth_return_path')
         
         console.log('🔄 [CALLBACK] Redirecionando para settings devido ao erro')
-        navigate('/settings')
+        // Aguardar 3 segundos antes de redirecionar para dar tempo de ler o erro
+        setTimeout(() => {
+          navigate('/settings')
+        }, 3000)
       }
     }
 
