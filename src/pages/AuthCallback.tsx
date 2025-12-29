@@ -123,11 +123,31 @@ const AuthCallbackPage = () => {
   }, [handleAuthenticationCallback, navigate, login])
 
   return (
-    <div className="flex h-screen w-full flex-col items-center justify-center bg-background">
-      <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      <p className="mt-4 text-lg text-muted-foreground">
-        Autenticando com o Google...
-      </p>
+    <div className="flex h-screen w-full flex-col items-center justify-center bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="relative flex flex-col items-center gap-6 p-8">
+        {/* Animated logo/spinner */}
+        <div className="relative">
+          <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 backdrop-blur-sm">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </div>
+        </div>
+        
+        {/* Text content */}
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h2 className="text-2xl font-bold tracking-tight">Autenticando</h2>
+          <p className="text-sm text-muted-foreground animate-pulse">
+            Conectando com sua conta Google...
+          </p>
+        </div>
+        
+        {/* Progress dots */}
+        <div className="flex gap-2">
+          <div className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+          <div className="h-2 w-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+          <div className="h-2 w-2 rounded-full bg-primary animate-bounce" />
+        </div>
+      </div>
     </div>
   )
 }
